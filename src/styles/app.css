@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+@theme {
+  --color-betiq-50: #f7f7f7;
+  --color-betiq-100: #e3e3e3;
+  --color-betiq-200: #c8c8c8;
+  --color-betiq-300: #a4a4a4;
+  --color-betiq-400: #818181;
+  --color-betiq-500: #666666;
+  --color-betiq-600: #515151;
+  --color-betiq-700: #434343;
+  --color-betiq-800: #3a3a3a;
+  --color-betiq-900: #1a1a1a;
+  --color-betiq-950: #0f0f0f;
+
+  --color-gold-50: #fffbea;
+  --color-gold-100: #fff3c4;
+  --color-gold-200: #fce588;
+  --color-gold-300: #fadb5f;
+  --color-gold-400: #f7c948;
+  --color-gold-500: #f0b429;
+  --color-gold-600: #c9950a;
+  --color-gold-700: #a67c00;
+  --color-gold-800: #8a6500;
+  --color-gold-900: #5f4500;
+  --color-gold-950: #3b2900;
+
+  --font-sans: "Inter", "SF Pro", system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  html {
+    @apply bg-betiq-950 text-betiq-100 antialiased;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply min-h-dvh bg-betiq-950 text-betiq-100;
+  }
+
+  ::selection {
+    @apply bg-gold-500/30 text-gold-200;
+  }
+}
+
+@layer components {
+  .gradient-gold {
+    @apply bg-gradient-to-r from-gold-500 to-gold-400 bg-clip-text text-transparent;
+  }
+
+  .gradient-gold-subtle {
+    @apply bg-gradient-to-br from-gold-400 via-gold-500 to-gold-600 bg-clip-text text-transparent;
+  }
+
+  .card-betiq {
+    @apply rounded-xl border border-betiq-800 bg-betiq-900 p-6 shadow-lg;
+  }
+
+  .card-betiq-hover {
+    @apply rounded-xl border border-betiq-800 bg-betiq-900 p-6 shadow-lg transition-all duration-200 hover:border-gold-500/30 hover:shadow-gold-500/5 hover:shadow-xl;
+  }
+
+  .btn-gold {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-gold-500 px-6 py-3 text-sm font-semibold text-betiq-950 transition-all duration-200 hover:bg-gold-400 active:bg-gold-600;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-betiq-700 bg-transparent px-6 py-3 text-sm font-semibold text-betiq-200 transition-all duration-200 hover:border-gold-500/50 hover:text-gold-400;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-betiq-300 transition-all duration-200 hover:bg-betiq-800 hover:text-betiq-100;
+  }
+
+  .badge-gold {
+    @apply inline-flex items-center rounded-full bg-gold-500/10 px-3 py-1 text-xs font-medium text-gold-400 ring-1 ring-gold-500/20;
+  }
+
+  .section-heading {
+    @apply text-3xl font-bold tracking-tight text-betiq-50 sm:text-4xl;
+  }
+
+  .section-subheading {
+    @apply mt-4 max-w-2xl text-lg text-betiq-400;
+  }
+
+  .glow-gold {
+    box-shadow: 0 0 40px -8px rgba(240, 180, 41, 0.15);
+  }
+}
