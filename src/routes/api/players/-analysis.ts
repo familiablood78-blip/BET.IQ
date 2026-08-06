@@ -17,8 +17,18 @@ interface AnalysisInput {
 }
 
 /**
- * POST /api/players/:id/analysis
+ * POST /api/players/analysis
  * Analyzes a player prop using the sports data provider + AI engine.
+ *
+ * Auto-saves every analysis to ai_analyses with:
+ *   - player_name, sport, prop_type, prop_line
+ *   - bet_type (derived from recommendation)
+ *   - confidence_score, recommendation, reasoning, key_factors
+ *   - projected_stat
+ *   - confidence_tier (high/medium/low based on confidence score)
+ *
+ * Returns the analysis result including the saved ID for future reference
+ * (e.g., settling the prediction later via /api/analytics/settle).
  */
 export const analyzePlayerProp = createServerFn({ method: "POST" })
   .validator((data: AnalysisInput) => data)
@@ -71,16 +81,31 @@ export const analyzePlayerProp = createServerFn({ method: "POST" })
       availableProps: gameProps,
     });
 
-    // Save the analysis
+    // Derive bet_type from recommendation
+    let betType: string;
+    if (analysis.recommendation === "lean_over") betType = "over";
+    else if (analysis.recommendation === "lean_under") betType = "under";
+    else betType = "not_recommended";
+
+    // Determine confidence tier
+    let confidenceTier: string;
+    if (analysis.confidenceScore >= 80) confidenceTier = "high";
+    else if (analysis.confidenceScore >= 60) confidenceTier = "medium";
+    else confidenceTier = "low";
+
+    // Save the analysis with expanded fields
     const result = await client`
       INSERT INTO ai_analyses (
         user_id, player_name, sport, league, prop_type, prop_line,
-        confidence_score, recommendation, reasoning, key_factors, game_date
+        bet_type, confidence_score, recommendation, reasoning,
+        key_factors, projected_stat, confidence_tier, game_date,
+        outcome, result
       ) VALUES (
         ${userId}, ${playerName}, ${sport}, ${league ?? null}, ${propType}, ${propLine},
-        ${analysis.confidenceScore}, ${analysis.recommendation},
+        ${betType}, ${analysis.confidenceScore}, ${analysis.recommendation},
         ${analysis.reasoning}, ${JSON.stringify(analysis.keyFactors)},
-        ${gameDate ?? null}
+        ${analysis.projectedStat ?? null}, ${confidenceTier},
+        ${gameDate ?? null}, 'pending', 'pending'
       )
       RETURNING id, created_at
     `;
@@ -93,10 +118,13 @@ export const analyzePlayerProp = createServerFn({ method: "POST" })
       sport,
       propType,
       propLine,
+      betType,
       confidenceScore: analysis.confidenceScore,
+      confidenceTier,
       recommendation: analysis.recommendation,
       reasoning: analysis.reasoning,
       keyFactors: analysis.keyFactors,
+      projectedStat: analysis.projectedStat ?? null,
       createdAt: String(result[0].created_at),
     };
   });
@@ -116,6 +144,7 @@ interface AnalysisResult {
   confidenceScore: number;
   recommendation: "lean_over" | "lean_under" | "no_bet";
   reasoning: string;
+  projectedStat?: number;
   keyFactors: Array<{ factor: string; impact: "positive" | "negative"; detail: string }>;
 }
 
@@ -148,6 +177,7 @@ Injury Status: ${ctx.player?.injuryStatus ?? "Unknown"}
 Return a JSON object with:
 - confidenceScore (0-100)
 - recommendation ("lean_over", "lean_under", or "no_bet")
+- projectedStat (estimated stat value)
 - reasoning (2-3 sentences)
 - keyFactors (array of {factor, impact: "positive"|"negative", detail})`;
 
@@ -177,9 +207,14 @@ function generateMockAnalysis(ctx: AnalysisContext): AnalysisResult {
   if (score > 65) recommendation = "lean_over";
   else if (score > 50) recommendation = Math.random() > 0.5 ? "lean_over" : "lean_under";
 
+  // Generate a realistic projected stat
+  const variance = (Math.random() - 0.5) * (ctx.propLine * 0.2);
+  const projectedStat = Math.round((ctx.propLine + variance) * 10) / 10;
+
   return {
     confidenceScore: score,
     recommendation,
+    projectedStat: Math.max(0, projectedStat),
     reasoning: `Based on ${ctx.playerName}'s recent form and matchup, ${
       recommendation === "lean_over" ? "the OVER looks promising" :
       recommendation === "lean_under" ? "the UNDER is favored" :
