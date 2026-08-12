@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useUser, SignOutButton } from "@clerk/tanstack-start";
 import { useState, useEffect, useCallback } from "react";
+import { ClerkGate, AuthUnavailable } from "~/components/ClerkGate";
 
 export const Route = createFileRoute("/profile")({ component: ProfilePage });
 
@@ -10,6 +11,21 @@ interface Sub { tier: "free" | "premium"; status: string; }
 interface Usage { isPremium: boolean; analysesToday: number; analysesLimit: number; remaining: number; }
 
 function ProfilePage() {
+  return (
+    <ClerkGate
+      fallback={
+        <AuthUnavailable
+          title="Profile is not available yet"
+          message="This page requires authentication, but Clerk keys aren't configured for this deployment yet. The rest of BetIQ works fine — check back soon."
+        />
+      }
+    >
+      <ProfileInner />
+    </ClerkGate>
+  );
+}
+
+function ProfileInner() {
   const { user } = useUser();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile | null>(null);

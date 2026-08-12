@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { useUser } from "@clerk/tanstack-start";
 import { useState, useEffect, useCallback } from "react";
+import { ClerkGate, AuthUnavailable } from "~/components/ClerkGate";
 
 export const Route = createFileRoute("/admin")({ component: AdminPage });
 
@@ -12,6 +13,21 @@ interface Analytics {
 }
 
 function AdminPage() {
+  return (
+    <ClerkGate
+      fallback={
+        <AuthUnavailable
+          title="Admin dashboard is not available yet"
+          message="This page requires authentication, but Clerk keys aren't configured for this deployment yet. The rest of BetIQ works fine — check back soon."
+        />
+      }
+    >
+      <AdminInner />
+    </ClerkGate>
+  );
+}
+
+function AdminInner() {
   const { user, isLoaded } = useUser();
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(true);

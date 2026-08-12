@@ -9,6 +9,7 @@ import { ClerkProvider } from "@clerk/tanstack-start";
 
 import appCss from "~/styles/app.css?url";
 import { Layout } from "~/components/Layout";
+import { CLERK_PUBLISHABLE_KEY } from "~/lib/clerk";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -45,7 +46,7 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: { children: ReactNode }) {
-  const clerkKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+  const clerkKey = CLERK_PUBLISHABLE_KEY;
   return (
     <html lang="en" className="dark">
       <head>
