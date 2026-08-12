@@ -1,5 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useState, useCallback, useEffect } from "react";
+import { FeedbackWidget, BugReportModal } from "./FeedbackWidget";
+import { ErrorBoundary } from "./ErrorBoundary";
 
 /* ---------- Marketing header (landing page) ---------- */
 export function Header() {
@@ -134,6 +136,14 @@ export function Footer() {
                   </a>
                 </li>
               ))}
+              <li>
+                <button type="button" onClick={() => {
+                  const event = new CustomEvent("betiq:open-bug-report");
+                  window.dispatchEvent(event);
+                }} className="text-sm text-betiq-400 transition-colors hover:text-gold-400">
+                  Report a Bug
+                </button>
+              </li>
             </ul>
           </div>
         </div>
@@ -199,10 +209,94 @@ const appNavItems = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const location = useLocation();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [bugReportOpen, setBugReportOpen] = useState(false);
+  const pathname = location.pathname;
+
+  // Listen for bug report custom event from Footer
+  useEffect(() => {
+    const handler = () => setBugReportOpen(true);
+    window.addEventListener("betiq:open-bug-report", handler);
+    return () => window.removeEventListener("betiq:open-bug-report", handler);
+  }, []);
+
+  // Close sidebar on route change
+  useEffect(() => { setSidebarOpen(false); }, [pathname]);
+
+  // Close sidebar on Escape key
+  useEffect(() => {
+    if (!sidebarOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setSidebarOpen(false); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [sidebarOpen]);
+
+  // Prevent body scroll when overlay is open
+  useEffect(() => {
+    if (sidebarOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [sidebarOpen]);
+
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+
+  const sidebarContent = (
+    <>
+      <div className="flex h-14 items-center justify-between border-b border-betiq-800/50 px-4">
+        <Link to="/" className="flex items-center gap-2.5" onClick={closeSidebar}>
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gold-500">
+            <span className="text-sm font-bold text-betiq-950">IQ</span>
+          </div>
+          <span className="text-lg font-bold tracking-tight text-betiq-50">
+            Bet<span className="text-gold-500">IQ</span>
+          </span>
+        </Link>
+        <button type="button" onClick={closeSidebar} className="btn-ghost lg:hidden" aria-label="Close sidebar">
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <ul className="space-y-1">
+          {appNavItems.map((item) => {
+            const isActive = pathname === item.to;
+            return (
+              <li key={item.to}>
+                <Link
+                  to={item.to}
+                  onClick={closeSidebar}
+                  className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? "bg-gold-500/10 text-gold-400"
+                      : "text-betiq-300 hover:bg-betiq-800 hover:text-betiq-100"
+                  }`}
+                >
+                  <span className={isActive ? "text-gold-400" : "text-betiq-400"}>{item.icon}</span>
+                  {item.label}
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      </nav>
+      <div className="border-t border-betiq-800/50 px-3 py-4">
+        <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-xs text-betiq-500">
+          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-gold-500/10 text-gold-400 text-xs font-bold">
+            IQ
+          </div>
+          <span>v1.0.0</span>
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <div className="flex min-h-dvh flex-col lg:flex-row">
-      {/* Desktop sidebar */}
+      {/* Desktop sidebar — always visible on lg+ */}
       <aside className="hidden w-64 flex-shrink-0 border-r border-betiq-800/50 bg-betiq-950 lg:flex lg:flex-col">
         <div className="flex h-16 items-center gap-2.5 border-b border-betiq-800/50 px-6">
           <Link to="/" className="flex items-center gap-2.5">
@@ -217,7 +311,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="space-y-1">
             {appNavItems.map((item) => {
-              const isActive = location.pathname === item.to;
+              const isActive = pathname === item.to;
               return (
                 <li key={item.to}>
                   <Link
@@ -246,8 +340,47 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* Mobile header */}
-      <MobileAppHeader />
+      {/* Mobile header with hamburger */}
+      <div className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-betiq-800/50 bg-betiq-950 px-4 lg:hidden">
+        <button type="button" onClick={() => setSidebarOpen(true)} className="btn-ghost -ml-2" aria-label="Open menu">
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+          </svg>
+        </button>
+        <Link to="/" className="flex items-center gap-2">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gold-500">
+            <span className="text-xs font-bold text-betiq-950">IQ</span>
+          </div>
+          <span className="text-base font-bold tracking-tight text-betiq-50">
+            Bet<span className="text-gold-500">IQ</span>
+          </span>
+        </Link>
+        <div className="w-10" />{/* spacer for centering */}
+      </div>
+
+      {/* Mobile sidebar overlay */}
+      <div
+        className={`fixed inset-0 z-50 transition-all duration-300 lg:hidden ${
+          sidebarOpen ? "visible opacity-100 pointer-events-auto" : "invisible opacity-0 pointer-events-none"
+        }`}
+      >
+        {/* Dark backdrop — tap to close */}
+        <div
+          className={`absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ${
+            sidebarOpen ? "opacity-100" : "opacity-0"
+          }`}
+          onClick={closeSidebar}
+          aria-hidden="true"
+        />
+        {/* Slide-in drawer */}
+        <aside
+          className={`absolute inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col bg-betiq-950 border-r border-betiq-800/50 shadow-2xl transition-transform duration-300 ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          {sidebarContent}
+        </aside>
+      </div>
 
       {/* Main content area */}
       <div className="flex flex-1 flex-col">
@@ -257,11 +390,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       </div>
 
       {/* Mobile bottom navigation */}
-      <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-betiq-800/50 bg-betiq-950/95 backdrop-blur-xl lg:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-betiq-800/50 bg-betiq-950/95 backdrop-blur-xl lg:hidden">
         <ul className="flex items-center justify-around">
           {appNavItems.slice(0, 5).map((item) => {
-            // Map the nav items to their actual paths for matching
-            const isActive = location.pathname === item.to;
+            const isActive = pathname === item.to;
             return (
               <li key={item.to} className="flex-1">
                 <Link
@@ -271,28 +403,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                   }`}
                 >
                   <span className={isActive ? "text-gold-400" : "text-betiq-500"}>{item.icon}</span>
-                  <span>{item.label}</span>
+                  <span>{item.label === "EV Calculator" ? "EV Calc" : item.label}</span>
                 </Link>
               </li>
             );
           })}
         </ul>
       </nav>
-    </div>
-  );
-}
-
-function MobileAppHeader() {
-  return (
-    <div className="flex h-14 items-center gap-3 border-b border-betiq-800/50 bg-betiq-950 px-4 lg:hidden">
-      <Link to="/" className="flex items-center gap-2">
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gold-500">
-          <span className="text-xs font-bold text-betiq-950">IQ</span>
-        </div>
-        <span className="text-base font-bold tracking-tight text-betiq-50">
-          Bet<span className="text-gold-500">IQ</span>
-        </span>
-      </Link>
+      <FeedbackWidget />
+      <BugReportModal open={bugReportOpen} onClose={() => setBugReportOpen(false)} />
     </div>
   );
 }
@@ -308,17 +427,18 @@ export function Layout({ children }: { children: ReactNode }) {
     location.pathname.startsWith("/admin") ||
     location.pathname.startsWith("/pricing") ||
     location.pathname.startsWith("/sign-in") ||
-    location.pathname.startsWith("/sign-up");
+    location.pathname.startsWith("/sign-up") ||
+    location.pathname.startsWith("/demo");
 
   if (isAppPage) {
-    return <AppShell>{children}</AppShell>;
+    return <ErrorBoundary><AppShell>{children}</AppShell></ErrorBoundary>;
   }
 
   return (
-    <>
+    <ErrorBoundary>
       <Header />
       <main>{children}</main>
       <Footer />
-    </>
+    </ErrorBoundary>
   );
 }
