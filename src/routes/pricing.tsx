@@ -14,7 +14,7 @@ const premiumFeatures = [
 ];
 
 const freeFeatures = [
-  "5 AI analyses per day",
+  "10 AI analyses per day",
   "Basic player stats",
   "Bet tracking (up to 50 bets)",
   "Standard odds display",

@@ -31,8 +31,13 @@ export const getSubscription = createServerFn({ method: "GET" })
   });
 
 /**
- * POST /api/subscriptions/upgrade — Upgrade to Premium (placeholder)
- * In production, this creates a Stripe Checkout session.
+ * POST /api/subscriptions/upgrade — Upgrade to Premium
+ *
+ * Premium is granted ONLY through a real Stripe Checkout session. Stripe is
+ * not wired up yet, so this endpoint FAILS CLOSED: it never simulates a
+ * successful payment or silently flips a user to premium. When Stripe is
+ * configured (STRIPE_SECRET_KEY present), create the Checkout session here and
+ * return its URL; the payment success webhook then upgrades the user.
  */
 export const upgradeToPremium = createServerFn({ method: "POST" })
   .handler(async () => {
@@ -49,22 +54,16 @@ export const upgradeToPremium = createServerFn({ method: "POST" })
       throw new Error("Already a Premium subscriber");
     }
 
-    // Placeholder: In production, create Stripe Checkout session here
+    // Fail closed: no Stripe, no fake upgrades. This endpoint must NEVER
+    // grant premium features without a real payment.
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new Error("Premium checkout is not available yet — payments are not configured on this deployment.");
+    }
+
+    // In production: create a Stripe Checkout session here and return its URL.
     // const session = await stripe.checkout.sessions.create({ ... });
     // return { url: session.url };
-
-    // For now, simulate upgrade
-    await client`
-      UPDATE subscriptions 
-      SET tier = 'premium', status = 'active', updated_at = NOW()
-      WHERE user_id = ${auth.userId}
-    `;
-    await client`
-      UPDATE users SET is_premium = true, updated_at = NOW()
-      WHERE id = ${auth.userId}
-    `;
-
-    return { success: true, tier: "premium", message: "Upgraded to Premium" };
+    throw new Error("Stripe checkout integration is not implemented yet");
   });
 
 /**
