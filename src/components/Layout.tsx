@@ -99,7 +99,7 @@ export function Footer() {
               </span>
             </div>
             <p className="mt-3 text-sm text-betiq-400">
-              AI-powered analysis for smarter sports betting decisions.
+              Data-driven sports betting analytics. Research. Analyze. Track.
             </p>
           </div>
           <div>

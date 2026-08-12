@@ -92,7 +92,7 @@ function Dashboard() {
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-betiq-50">Dashboard</h1>
-          <p className="text-sm text-betiq-400">Your daily betting intelligence</p>
+          <p className="text-sm text-betiq-400">Your daily research dashboard</p>
         </div>
         <div className="mt-3 flex items-center gap-3 sm:mt-0">
           <span className="badge-gold">Live</span>
@@ -324,7 +324,7 @@ function Dashboard() {
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: "Bets Today", value: "3", color: "text-gold-400" },
-                { label: "Win Rate", value: "67%", color: "text-green-400" },
+                { label: "Accuracy", value: "67%", color: "text-green-400" },
                 { label: "ROI (7d)", value: "+12.4%", color: "text-green-400" },
                 { label: "AI Credits", value: "5/5", color: "text-betiq-300" },
               ].map((stat, i) => (
