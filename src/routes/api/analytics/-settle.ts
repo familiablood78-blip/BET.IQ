@@ -24,7 +24,7 @@ interface SettleInput {
 export const settlePrediction = createServerFn({ method: "POST" })
   .validator((data: SettleInput) => data)
   .handler(async ({ data }) => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const userId = auth.userId!;
     const client = sql();
 

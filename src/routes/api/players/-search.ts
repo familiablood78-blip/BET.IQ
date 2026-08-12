@@ -22,7 +22,7 @@ try {
 export const searchPlayers = createServerFn({ method: "GET" })
   .validator((data: { q: string; sport?: string }) => data)
   .handler(async ({ data }) => {
-    await requireAuth(new Request("http://localhost"));
+    await requireAuth();
     const { q, sport } = data;
     const provider = getProvider();
     const players = await provider.searchPlayers(q, sport as Sport | undefined);

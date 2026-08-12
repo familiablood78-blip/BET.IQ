@@ -17,7 +17,7 @@ import { requireAuth } from "~/lib/auth";
  */
 export const getAccuracyStats = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const userId = auth.userId!;
     const client = sql();
 

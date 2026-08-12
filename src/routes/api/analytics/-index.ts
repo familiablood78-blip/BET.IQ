@@ -8,7 +8,7 @@ import { requireAuth } from "~/lib/auth";
  */
 export const getDashboardAnalytics = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
 
     // Check if user is admin (email check as simple gate)
@@ -65,7 +65,7 @@ export const getDashboardAnalytics = createServerFn({ method: "GET" })
  */
 export const getTopPlayers = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     const rows = await client`
       SELECT player_name, sport, COUNT(*) as count, AVG(confidence_score) as avg_confidence
