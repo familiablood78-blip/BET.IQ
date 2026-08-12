@@ -1,5 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Link } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
+import { useState, useEffect } from "react";
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
@@ -85,7 +86,45 @@ const newsItems = [
   { title: "McDavid extends point streak to 12 games", league: "NHL", time: "8h ago" },
 ];
 
+/**
+ * Real activity stats derived from the user's own settled bets (bets table),
+ * prediction accuracy (ai_analyses settled rows), and usage (usage_log).
+ * Returns null via catch when not signed in or Clerk keys are not configured —
+ * the UI shows "—" instead of fake numbers.
+ */
+const fetchActivityStats = createServerFn({ method: "GET" }).handler(async () => {
+  const [{ getBetStats }, { getAccuracyStats }, { getUsage }] = await Promise.all([
+    import("./api/bets/-index"),
+    import("./api/analytics/-accuracy"),
+    import("./api/subscriptions/-index"),
+  ]);
+  const [betStats, accuracyStats, usage] = await Promise.all([
+    getBetStats(),
+    getAccuracyStats(),
+    getUsage(),
+  ]);
+  return {
+    total: betStats.total,
+    winRate: betStats.winRate,
+    totalProfit: betStats.totalProfit,
+    accuracy: accuracyStats.overall.accuracy, // wins/(settled−pushes), user-owned
+    analysesToday: usage.analysesToday,
+    analysesLimit: usage.analysesLimit,
+  };
+});
+
 function Dashboard() {
+  const [activity, setActivity] = useState<{
+    total: number; winRate: number; totalProfit: number;
+    accuracy: number; analysesToday: number; analysesLimit: number;
+  } | null>(null);
+
+  useEffect(() => {
+    fetchActivityStats()
+      .then(setActivity)
+      .catch(() => setActivity(null)); // unauthenticated / no keys → "—"
+  }, []);
+
   return (
     <div className="mx-auto max-w-7xl space-y-8 px-4 py-6 sm:px-6 lg:px-8">
       {/* Page header */}
@@ -318,15 +357,15 @@ function Dashboard() {
             </div>
           </section>
 
-          {/* Quick Stats */}
+          {/* Quick Stats — real data from getBetStats + getAccuracyStats + getUsage */}
           <section>
             <h2 className="mb-4 text-lg font-semibold text-betiq-50">Your Activity</h2>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: "Bets Today", value: "3", color: "text-gold-400" },
-                { label: "Accuracy", value: "67%", color: "text-green-400" },
-                { label: "ROI (7d)", value: "+12.4%", color: "text-green-400" },
-                { label: "AI Credits", value: "5/5", color: "text-betiq-300" },
+                { label: "Bets Tracked", value: activity ? String(activity.total) : "—", color: "text-gold-400" },
+                { label: "Accuracy", value: activity ? Math.round(activity.accuracy * 100) + "%" : "—", color: activity && activity.accuracy * 100 >= 50 ? "text-green-400" : "text-betiq-300" },
+                { label: "P/L", value: activity ? (activity.totalProfit >= 0 ? "+$" : "-$") + Math.abs(activity.totalProfit).toFixed(2) : "—", color: activity && activity.totalProfit >= 0 ? "text-green-400" : "text-betiq-300" },
+                { label: "AI Credits", value: activity ? `${activity.analysesToday}/${activity.analysesLimit}` : "—", color: "text-betiq-300" },
               ].map((stat, i) => (
                 <div key={i} className="card-betiq text-center">
                   <p className={`text-xl font-bold ${stat.color}`}>{stat.value}</p>
