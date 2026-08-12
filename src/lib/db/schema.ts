@@ -12,9 +12,13 @@ CREATE TABLE IF NOT EXISTS users (
   last_name TEXT,
   image_url TEXT,
   is_premium BOOLEAN NOT NULL DEFAULT false,
+  is_admin BOOLEAN NOT NULL DEFAULT false,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migration: add is_admin to existing users tables
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT false;
 
 -- Subscriptions (free/premium tier tracking)
 CREATE TABLE IF NOT EXISTS subscriptions (

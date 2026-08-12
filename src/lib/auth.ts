@@ -48,6 +48,47 @@ export async function requireAuth(): Promise<AuthObject> {
 }
 
 /**
+ * Require admin access — throws 403 if the user is not an admin.
+ *
+ * Admin status is determined, in order:
+ * 1. `is_admin` column on the `users` table (set via DB directly)
+ * 2. Email match against the `ADMIN_EMAILS` env var (comma-separated)
+ *
+ * Must be called after requireAuth().
+ */
+export async function requireAdmin(auth: AuthObject): Promise<void> {
+  const client = sql();
+
+  // Check local users table for is_admin flag
+  try {
+    const rows =
+      await client`SELECT email, is_admin FROM users WHERE id = ${auth.userId}`;
+    if (rows.length > 0 && rows[0].is_admin) return;
+    const email = rows[0]?.email ?? "";
+    if (email) {
+      const adminEmails = (process.env.ADMIN_EMAILS ?? "")
+        .split(",")
+        .map((e) => e.trim().toLowerCase());
+      if (adminEmails.includes(email.toLowerCase())) return;
+    }
+  } catch {
+    // Fall through to Clerk-based check
+  }
+
+  // Try Clerk metadata as a last resort
+  try {
+    const user = await clerkClient.users.getUser(auth.userId);
+    const isAdmin =
+      (user.publicMetadata as Record<string, unknown>)?.isAdmin === true;
+    if (isAdmin) return;
+  } catch {
+    // Clerk keys not configured — fail closed
+  }
+
+  throw new Error("Forbidden: admin access required");
+}
+
+/**
  * Ensure a user exists in the local `users` table.
  * If not found, fetches from Clerk and syncs via syncUser.
  * Call this once at the start of handlers that need a local user row
