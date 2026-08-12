@@ -1,4 +1,5 @@
 import { createServerFn } from "@tanstack/react-start";
+import { requireAuth, requireAdmin } from "~/lib/auth";
 
 interface FeedbackEntry {
   type: "helpful" | "improvement" | "feature" | "bug";
@@ -22,7 +23,10 @@ export const submitFeedback = createServerFn({ method: "POST" })
     return { success: true, id: feedbackStore.length - 1 };
   });
 
+/** Admin-only: read all feedback entries */
 export const getFeedback = createServerFn({ method: "GET" })
   .handler(async () => {
+    const auth = await requireAuth();
+    await requireAdmin(auth);
     return feedbackStore;
   });

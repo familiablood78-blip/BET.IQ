@@ -20,7 +20,7 @@ interface BetInput {
  */
 export const listBets = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     const rows = await client`
       SELECT * FROM bets 
@@ -43,7 +43,7 @@ export const listBets = createServerFn({ method: "GET" })
 export const createBet = createServerFn({ method: "POST" })
   .validator((data: BetInput) => data)
   .handler(async ({ data }) => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     const result = await client`
       INSERT INTO bets (user_id, sport, event_name, player_name, prop_type, prop_line, bet_type, odds, stake, league, notes)
@@ -59,7 +59,7 @@ export const createBet = createServerFn({ method: "POST" })
 export const updateBet = createServerFn({ method: "PUT" })
   .validator((data: { id: string; outcome: "win" | "loss" | "push" | "pending"; profit?: number }) => data)
   .handler(async ({ data }) => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     const result = await client`
       UPDATE bets 
@@ -80,7 +80,7 @@ export const updateBet = createServerFn({ method: "PUT" })
 export const deleteBet = createServerFn({ method: "DELETE" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     await client`DELETE FROM bets WHERE id = ${data.id} AND user_id = ${auth.userId}`;
     return { success: true };
@@ -91,7 +91,7 @@ export const deleteBet = createServerFn({ method: "DELETE" })
  */
 export const getBetStats = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     const rows = await client`
       SELECT 

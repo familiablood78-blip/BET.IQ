@@ -1,13 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { sql } from "~/db";
-import { requireAuth } from "~/lib/auth";
+import { requireAuth, ensureUser } from "~/lib/auth";
 
 /**
  * GET /api/user/profile — Get current user's profile
  */
 export const getProfile = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
+    // Auto-sync user from Clerk if not yet in local DB (new signups)
+    await ensureUser(auth);
     const client = sql();
     const users = await client`SELECT * FROM users WHERE id = ${auth.userId}`;
     if (users.length === 0) throw new Error("User not found");
@@ -29,7 +31,7 @@ export const getProfile = createServerFn({ method: "GET" })
 export const updateProfile = createServerFn({ method: "PUT" })
   .validator((data: { firstName?: string; lastName?: string }) => data)
   .handler(async ({ data }) => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     await client`
       UPDATE users 
@@ -46,7 +48,7 @@ export const updateProfile = createServerFn({ method: "PUT" })
  */
 export const getNotifications = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     const rows = await client`
       SELECT * FROM notifications 
@@ -67,7 +69,7 @@ export const getNotifications = createServerFn({ method: "GET" })
 export const markNotificationRead = createServerFn({ method: "PUT" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     await client`
       UPDATE notifications SET read = true 
@@ -81,7 +83,7 @@ export const markNotificationRead = createServerFn({ method: "PUT" })
  */
 export const markAllNotificationsRead = createServerFn({ method: "PUT" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     await client`
       UPDATE notifications SET read = true 
@@ -95,7 +97,7 @@ export const markAllNotificationsRead = createServerFn({ method: "PUT" })
  */
 export const getSavedItems = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     const rows = await client`
       SELECT * FROM saved_items 
@@ -111,7 +113,7 @@ export const getSavedItems = createServerFn({ method: "GET" })
 export const saveItem = createServerFn({ method: "POST" })
   .validator((data: { itemType: "player" | "team"; itemName: string; sport: string; teamName?: string; league?: string }) => data)
   .handler(async ({ data }) => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     await client`
       INSERT INTO saved_items (user_id, item_type, item_name, sport, team_name, league)
@@ -127,7 +129,7 @@ export const saveItem = createServerFn({ method: "POST" })
 export const deleteSavedItem = createServerFn({ method: "DELETE" })
   .validator((data: { id: string }) => data)
   .handler(async ({ data }) => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     await client`DELETE FROM saved_items WHERE id = ${data.id} AND user_id = ${auth.userId}`;
     return { success: true };

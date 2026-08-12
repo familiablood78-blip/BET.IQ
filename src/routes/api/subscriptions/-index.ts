@@ -7,7 +7,7 @@ import { requireAuth } from "~/lib/auth";
  */
 export const getSubscription = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
     const rows = await client`
       SELECT * FROM subscriptions 
@@ -36,7 +36,7 @@ export const getSubscription = createServerFn({ method: "GET" })
  */
 export const upgradeToPremium = createServerFn({ method: "POST" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
 
     // Check if already premium
@@ -72,7 +72,7 @@ export const upgradeToPremium = createServerFn({ method: "POST" })
  */
 export const cancelSubscription = createServerFn({ method: "POST" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
 
     await client`
@@ -93,7 +93,7 @@ export const cancelSubscription = createServerFn({ method: "POST" })
  */
 export const getUsage = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const client = sql();
 
     const today = new Date();

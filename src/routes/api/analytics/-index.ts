@@ -1,21 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { sql } from "~/db";
-import { requireAuth } from "~/lib/auth";
+import { requireAuth, requireAdmin } from "~/lib/auth";
 
 /**
  * GET /api/analytics/dashboard — Admin dashboard analytics
- * Requires premium/admin access.
+ * Requires admin access. Returns global aggregate data.
  */
 export const getDashboardAnalytics = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
+    await requireAdmin(auth);
     const client = sql();
-
-    // Check if user is admin (email check as simple gate)
-    const user = await client`SELECT email FROM users WHERE id = ${auth.userId}`;
-    const email = user[0]?.email ?? "";
-    // Admin check placeholder: in production use proper role-based access
-    // For now, any authenticated user can see their own analytics
 
     // Total users
     const totalUsers = await client`SELECT COUNT(*) as count FROM users`;
@@ -61,11 +56,12 @@ export const getDashboardAnalytics = createServerFn({ method: "GET" })
   });
 
 /**
- * GET /api/analytics/top-players — Most analyzed players
+ * GET /api/analytics/top-players — Most analyzed players (admin-only)
  */
 export const getTopPlayers = createServerFn({ method: "GET" })
   .handler(async () => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
+    await requireAdmin(auth);
     const client = sql();
     const rows = await client`
       SELECT player_name, sport, COUNT(*) as count, AVG(confidence_score) as avg_confidence

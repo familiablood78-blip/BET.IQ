@@ -24,7 +24,7 @@ interface SettleInput {
 export const settlePrediction = createServerFn({ method: "POST" })
   .validator((data: SettleInput) => data)
   .handler(async ({ data }) => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const userId = auth.userId!;
     const client = sql();
 
@@ -80,7 +80,7 @@ export const settlePrediction = createServerFn({ method: "POST" })
     else if (confidenceScore >= 60) confidenceTier = "medium";
     else confidenceTier = "low";
 
-    // Update the analysis record
+    // Update the analysis record (ownership-enforced)
     await client`
       UPDATE ai_analyses 
       SET 
@@ -89,7 +89,7 @@ export const settlePrediction = createServerFn({ method: "POST" })
         result = ${result},
         settled_at = NOW(),
         confidence_tier = ${confidenceTier}
-      WHERE id = ${data.analysisId}
+      WHERE id = ${data.analysisId} AND user_id = ${userId}
     `;
 
     // Create prediction_outcomes record

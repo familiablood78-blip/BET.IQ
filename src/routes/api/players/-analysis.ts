@@ -33,7 +33,7 @@ interface AnalysisInput {
 export const analyzePlayerProp = createServerFn({ method: "POST" })
   .validator((data: AnalysisInput) => data)
   .handler(async ({ data }) => {
-    const auth = await requireAuth(new Request("http://localhost"));
+    const auth = await requireAuth();
     const userId = auth.userId!;
 
     // Check free tier usage limit (10 analyses per day for free users)
