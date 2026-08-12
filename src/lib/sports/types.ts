@@ -7,12 +7,12 @@
 
 export type League =
   | "NFL" | "NBA" | "MLB" | "NHL"
-  | "PGA" | "UFC" | "Soccer"
+  | "PGA" | "UFC" | "Soccer" | "Tennis"
   | "CollegeFootball" | "CollegeBasketball";
 
 export const SUPPORTED_LEAGUES: League[] = [
   "NFL", "NBA", "MLB", "NHL",
-  "PGA", "UFC", "Soccer",
+  "PGA", "UFC", "Soccer", "Tennis",
   "CollegeFootball", "CollegeBasketball",
 ];
 
