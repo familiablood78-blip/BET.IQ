@@ -6,38 +6,78 @@ export const Route = createFileRoute("/analyzer")({
   component: Analyzer,
 });
 
-// Curated player names used as the offline/fallback search index.
-// Mirrors the sports data provider's mock dataset so behavior is consistent
-// when the backend API is unreachable (e.g. auth not configured).
-const fallbackPlayerNames = [
-  "LeBron James", "Stephen Curry", "Luka Dončić", "Giannis Antetokounmpo",
-  "Nikola Jokić", "Joel Embiid", "Shai Gilgeous-Alexander",
-  "Patrick Mahomes", "Travis Kelce", "Tyreek Hill", "Christian McCaffrey",
-  "Aaron Judge", "Shohei Ohtani", "Mookie Betts",
-  "Connor McDavid", "Auston Matthews", "Nathan MacKinnon",
-  "Christian Pulisic", "Lionel Messi",
-  "Rory McIlroy", "Scottie Scheffler", "Jon Rahm", "Xander Schauffele", "Collin Morikawa",
+// Curated player catalog used as the offline/fallback search index.
+// Mirrors the sports data provider's mock dataset (same names/teams/sports)
+// so behavior is consistent when the backend API is unreachable.
+interface PlayerRef {
+  name: string;
+  team: string;
+  sport: string;
+}
+
+const fallbackPlayers: PlayerRef[] = [
+  // NBA
+  { name: "LeBron James", team: "Los Angeles Lakers", sport: "NBA" },
+  { name: "Stephen Curry", team: "Golden State Warriors", sport: "NBA" },
+  { name: "Luka Dončić", team: "Dallas Mavericks", sport: "NBA" },
+  { name: "Giannis Antetokounmpo", team: "Milwaukee Bucks", sport: "NBA" },
+  { name: "Nikola Jokić", team: "Denver Nuggets", sport: "NBA" },
+  { name: "Joel Embiid", team: "Philadelphia 76ers", sport: "NBA" },
+  { name: "Shai Gilgeous-Alexander", team: "Oklahoma City Thunder", sport: "NBA" },
+  // NFL
+  { name: "Patrick Mahomes", team: "Kansas City Chiefs", sport: "NFL" },
+  { name: "Travis Kelce", team: "Kansas City Chiefs", sport: "NFL" },
+  { name: "Tyreek Hill", team: "Miami Dolphins", sport: "NFL" },
+  { name: "Christian McCaffrey", team: "San Francisco 49ers", sport: "NFL" },
+  // MLB
+  { name: "Aaron Judge", team: "New York Yankees", sport: "MLB" },
+  { name: "Shohei Ohtani", team: "Los Angeles Dodgers", sport: "MLB" },
+  // NHL
+  { name: "Connor McDavid", team: "Edmonton Oilers", sport: "NHL" },
+  { name: "Auston Matthews", team: "Toronto Maple Leafs", sport: "NHL" },
+  // Soccer
+  { name: "Christian Pulisic", team: "AC Milan", sport: "Soccer" },
+  { name: "Lionel Messi", team: "Inter Miami", sport: "Soccer" },
+  { name: "Erling Haaland", team: "Manchester City", sport: "Soccer" },
+  { name: "Kylian Mbappé", team: "Real Madrid", sport: "Soccer" },
+  // PGA
+  { name: "Rory McIlroy", team: "Northern Ireland", sport: "PGA" },
+  { name: "Scottie Scheffler", team: "United States", sport: "PGA" },
+  { name: "Jon Rahm", team: "Spain", sport: "PGA" },
+  { name: "Xander Schauffele", team: "United States", sport: "PGA" },
+  { name: "Collin Morikawa", team: "United States", sport: "PGA" },
+  { name: "Tiger Woods", team: "United States", sport: "PGA" },
+  // Tennis
+  { name: "Carlos Alcaraz", team: "Spain", sport: "Tennis" },
+  { name: "Jannik Sinner", team: "Italy", sport: "Tennis" },
 ];
 
 function Analyzer() {
   const [query, setQuery] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
+  const [selectedInfo, setSelectedInfo] = useState<PlayerRef | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [apiResults, setApiResults] = useState<string[]>([]);
+  const [apiResults, setApiResults] = useState<PlayerRef[]>([]);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Debounced search against the real player-search server function.
   // Falls back to the curated local index when the API is unavailable
-  // (e.g. Clerk auth not configured → server function throws 401).
+  // (e.g. server unreachable) so the page never breaks logged-out.
   const runApiSearch = useCallback(async (q: string) => {
     if (!q.trim()) { setApiResults([]); return; }
     setSearching(true);
     try {
       const res = await searchPlayers({ data: { q: q.trim() } });
-      setApiResults((res?.players ?? []).map((p) => p.name));
+      setApiResults(
+        (res?.players ?? []).map((p) => ({
+          name: p.name,
+          team: p.team,
+          sport: p.sport,
+        })),
+      );
     } catch {
-      // Unauthorized / API unavailable — local fallback index is used instead
+      // API unavailable — the curated local index is used instead
       setApiResults([]);
     } finally {
       setSearching(false);
@@ -47,7 +87,7 @@ function Analyzer() {
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!query.trim()) { setApiResults([]); return; }
-    debounceRef.current = setTimeout(() => { void runApiSearch(query); }, 250);
+    debounceRef.current = setTimeout(() => { void runApiSearch(query); }, 300);
     return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query, runApiSearch]);
 
@@ -55,10 +95,10 @@ function Analyzer() {
   const suggestions = useMemo(() => {
     if (!query.trim()) return [];
     const q = query.toLowerCase();
-    const local = fallbackPlayerNames.filter((p) => p.toLowerCase().includes(q));
-    const merged = [...local];
-    for (const name of apiResults) {
-      if (!merged.some((m) => m.toLowerCase() === name.toLowerCase())) merged.push(name);
+    const local = fallbackPlayers.filter((p) => p.name.toLowerCase().includes(q));
+    const merged: PlayerRef[] = [...local];
+    for (const api of apiResults) {
+      if (!merged.some((m) => m.name.toLowerCase() === api.name.toLowerCase())) merged.push(api);
     }
     return merged;
   }, [query, apiResults]);
@@ -108,21 +148,27 @@ function Analyzer() {
             {searching && suggestions.length === 0 && (
               <p className="px-3 py-2.5 text-sm text-betiq-500 animate-pulse">Searching players…</p>
             )}
-            {suggestions.map((name) => (
+            {suggestions.map((p) => (
               <button
-                key={name}
+                key={p.name}
                 type="button"
                 onClick={() => {
-                  setQuery(name);
-                  setSelectedPlayer(name);
+                  setQuery(p.name);
+                  setSelectedPlayer(p.name);
+                  setSelectedInfo({ name: p.name, team: p.team, sport: p.sport });
                   setShowSuggestions(false);
                 }}
                 className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm text-betiq-200 transition-colors hover:bg-betiq-800"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gold-500/10 text-xs font-bold text-gold-400">
-                  {name.split(" ").map((n) => n[0]).join("")}
+                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gold-500/10 text-xs font-bold text-gold-400">
+                  {p.name.split(" ").map((n) => n[0]).join("")}
                 </div>
-                {name}
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-betiq-200">{p.name}</p>
+                  <p className="truncate text-xs text-betiq-500">
+                    {p.team} · {p.sport}
+                  </p>
+                </div>
               </button>
             ))}
           </div>
@@ -137,10 +183,20 @@ function Analyzer() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
           </div>
-          <h3 className="mt-4 text-lg font-semibold text-betiq-300">{selectedPlayer}</h3>
-          <p className="mt-2 text-sm text-betiq-500">
-            Full AI analysis for this player unlocks when you sign in. Search another player to explore a preview.
+          <h3 className="mt-4 text-lg font-semibold text-betiq-300">
+            {selectedPlayer}
+            {selectedInfo && (
+              <span className="mt-1 block text-sm font-normal text-betiq-500">
+                {selectedInfo.team} · {selectedInfo.sport}
+              </span>
+            )}
+          </h3>
+          <p className="mx-auto mt-2 max-w-md text-sm text-betiq-500">
+            Detailed stats unavailable for this player — demo estimate only. Full AI analysis unlocks when you sign in. Search another player to explore a preview.
           </p>
+          <span className="mt-4 inline-flex items-center rounded-full bg-gold-500/10 px-3 py-1 text-[10px] font-medium uppercase tracking-wider text-gold-400 ring-1 ring-gold-500/20">
+            Demo data — not real results
+          </span>
           <Link to="/sign-up" className="btn-gold mt-6 text-sm">Create a Free Account</Link>
         </div>
       ) : playerData ? (
@@ -160,6 +216,9 @@ function Analyzer() {
                   <span className="text-betiq-600">•</span>
                   <span>#{playerData.number}</span>
                 </div>
+                <span className="mt-2 inline-flex items-center rounded-full bg-gold-500/10 px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-gold-400 ring-1 ring-gold-500/20">
+                  Demo data — not real results
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -442,6 +501,7 @@ function getPlayerData(name: string) {
   };
 
   // Return null for players without curated preview data — the UI shows a
-  // graceful "sign in for full analysis" state instead of mislabeled mock data.
+  // graceful "detailed stats unavailable — demo estimate only" state (labeled
+  // as demo data) instead of mislabeled mock stats from another player.
   return players[name] || null;
 }
