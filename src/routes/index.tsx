@@ -21,13 +21,13 @@ function Home() {
       {/* Hero */}
       <section className="relative flex min-h-dvh flex-col items-center justify-center px-4 pt-20 text-center">
         <div className="glow-gold pointer-events-none absolute inset-0 opacity-30" />
-        <span className="badge-gold mb-6">AI-Powered Sports Betting Insights</span>
+        <span className="badge-gold mb-6">Data-Driven Sports Betting Analytics</span>
         <h1 className="gradient-gold max-w-4xl text-4xl font-extrabold tracking-tight sm:text-6xl lg:text-7xl">
-          Smarter Bets, <span className="text-betiq-100">Data-Driven Wins</span>
+          Make More Informed Decisions
         </h1>
         <p className="mt-6 max-w-2xl text-lg text-betiq-400 sm:text-xl">
           BetIQ combines real-time stats, player trends, and AI analysis to give you
-          confident player prop picks. Make informed decisions, not gut feelings.
+          data-driven player prop analysis. Make informed decisions, not gut feelings.
         </p>
 
         {/* CTA Buttons — wrapped in SafeClerk with fallback to plain links */}
@@ -56,20 +56,23 @@ function Home() {
             </div>
           ))}
         </div>
+        <p className="mt-10 text-xs text-betiq-600 max-w-md mx-auto">
+          BetIQ is a research and analytics tool — not a sportsbook and not a guaranteed-picks service. Always gamble responsibly.
+        </p>
       </section>
 
       {/* Features */}
       <section id="features" className="mx-auto max-w-7xl px-4 py-24 sm:px-6 lg:px-8">
         <div className="text-center">
           <span className="badge-gold mb-4">Features</span>
-          <h2 className="section-heading">Everything You Need to Win</h2>
-          <p className="section-subheading mx-auto">AI-powered tools designed for serious sports bettors</p>
+          <h2 className="section-heading">Research. Analyze. Track.</h2>
+          <p className="section-subheading mx-auto">Analytics tools for informed sports bettors</p>
         </div>
         <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
           {[
             { icon: "🧠", title: "AI Prop Analysis", desc: "Get AI-powered confidence scores and recommendations for any player prop across all major sports." },
             { icon: "📊", title: "EV Calculator", desc: "Calculate expected value on any bet using real-time odds and your projected probabilities." },
-            { icon: "📈", title: "Bet Tracking", desc: "Track every bet with detailed analytics on win rate, ROI, and performance by sport and prop type." },
+            { icon: "📈", title: "Bet Tracking", desc: "Track every bet with detailed analytics on accuracy, ROI, and performance by sport and prop type." },
             { icon: "🔗", title: "Parlay Builder", desc: "Build smart parlays with AI-suggested combinations based on correlated player props." },
             { icon: "⚡", title: "Real-Time Alerts", desc: "Get notified when line movements, injury news, or weather changes affect your bets." },
             { icon: "🏆", title: "Premium Insights", desc: "Unlock unlimited analyses, advanced stats, and premium alerts with BetIQ Premium." },

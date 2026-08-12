@@ -16,8 +16,8 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "BetIQ - AI-Powered Sports Betting Insights" },
-      { name: "description", content: "AI-powered analysis for smarter sports betting. Get data-driven player prop insights, confidence scores, and recommendations." },
+      { title: "BetIQ — Data-Driven Sports Betting Analytics" },
+      { name: "description", content: "Data-driven sports betting analytics for informed decisions. Research player props, analyze trends, and track your bets with AI-powered insights." },
     ],
     links: [
       { rel: "stylesheet", href: appCss },

@@ -86,7 +86,7 @@ function BetTracker() {
 
       {stats && (
         <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {[{l:"Total",v:stats.total,c:"text-betiq-100"},{l:"Win Rate",v:stats.winRate+"%",c:stats.winRate>=50?"text-green-400":"text-red-400"},
+          {[{l:"Total",v:stats.total,c:"text-betiq-100"},{l:"Accuracy",v:stats.winRate+"%",c:stats.winRate>=50?"text-green-400":"text-red-400"},
             {l:"Wins",v:stats.wins,c:"text-green-400"},{l:"Losses",v:stats.losses,c:"text-red-400"},
             {l:"Pushes",v:stats.pushes,c:"text-betiq-300"},{l:"P/L",v:fmtMoney(stats.totalProfit),c:stats.totalProfit>=0?"text-green-400":"text-red-400"}]
             .map(s=>(<div key={s.l} className="card-betiq text-center"><p className={`text-xl font-bold ${s.c}`}>{s.v}</p><p className="mt-1 text-[10px] uppercase tracking-wider text-betiq-500">{s.l}</p></div>))}

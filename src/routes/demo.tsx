@@ -299,7 +299,7 @@ function DemoPage() {
               </div>
               <div className="rounded-lg bg-betiq-950 p-4 text-center">
                 <p className="text-2xl font-bold text-green-400">{accuracy}%</p>
-                <p className="text-xs text-betiq-500 mt-1">Win Rate</p>
+                <p className="text-xs text-betiq-500 mt-1">Accuracy</p>
               </div>
               <div className="rounded-lg bg-betiq-950 p-4 text-center">
                 <p className="text-2xl font-bold text-betiq-100">73</p>

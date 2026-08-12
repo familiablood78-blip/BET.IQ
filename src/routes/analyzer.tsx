@@ -1,26 +1,67 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { searchPlayers } from "./api/players/-search";
 
 export const Route = createFileRoute("/analyzer")({
   component: Analyzer,
 });
 
-// Mock players for search
-const mockPlayers = [
+// Curated player names used as the offline/fallback search index.
+// Mirrors the sports data provider's mock dataset so behavior is consistent
+// when the backend API is unreachable (e.g. auth not configured).
+const fallbackPlayerNames = [
   "LeBron James", "Stephen Curry", "Luka Dončić", "Giannis Antetokounmpo",
-  "Nikola Jokić", "Joel Embiid", "Patrick Mahomes", "Travis Kelce",
-  "Tyreek Hill", "Aaron Judge", "Shohei Ohtani", "Mookie Betts",
+  "Nikola Jokić", "Joel Embiid", "Shai Gilgeous-Alexander",
+  "Patrick Mahomes", "Travis Kelce", "Tyreek Hill", "Christian McCaffrey",
+  "Aaron Judge", "Shohei Ohtani", "Mookie Betts",
   "Connor McDavid", "Auston Matthews", "Nathan MacKinnon",
+  "Christian Pulisic", "Lionel Messi",
+  "Rory McIlroy", "Scottie Scheffler", "Jon Rahm", "Xander Schauffele", "Collin Morikawa",
 ];
 
 function Analyzer() {
   const [query, setQuery] = useState("");
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [apiResults, setApiResults] = useState<string[]>([]);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const suggestions = query
-    ? mockPlayers.filter((p) => p.toLowerCase().includes(query.toLowerCase()))
-    : [];
+  // Debounced search against the real player-search server function.
+  // Falls back to the curated local index when the API is unavailable
+  // (e.g. Clerk auth not configured → server function throws 401).
+  const runApiSearch = useCallback(async (q: string) => {
+    if (!q.trim()) { setApiResults([]); return; }
+    setSearching(true);
+    try {
+      const res = await searchPlayers({ data: { q: q.trim() } });
+      setApiResults((res?.players ?? []).map((p) => p.name));
+    } catch {
+      // Unauthorized / API unavailable — local fallback index is used instead
+      setApiResults([]);
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) { setApiResults([]); return; }
+    debounceRef.current = setTimeout(() => { void runApiSearch(query); }, 250);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, runApiSearch]);
+
+  // Suggestions = curated local matches ∪ API results (deduped, case-insensitive)
+  const suggestions = useMemo(() => {
+    if (!query.trim()) return [];
+    const q = query.toLowerCase();
+    const local = fallbackPlayerNames.filter((p) => p.toLowerCase().includes(q));
+    const merged = [...local];
+    for (const name of apiResults) {
+      if (!merged.some((m) => m.toLowerCase() === name.toLowerCase())) merged.push(name);
+    }
+    return merged;
+  }, [query, apiResults]);
 
   // Mock data when a player is selected
   const playerData = selectedPlayer ? getPlayerData(selectedPlayer) : null;
@@ -62,8 +103,11 @@ function Analyzer() {
         </div>
 
         {/* Suggestions dropdown */}
-        {showSuggestions && suggestions.length > 0 && (
+        {(showSuggestions && (suggestions.length > 0 || searching)) && (
           <div className="absolute z-20 mt-2 w-full rounded-xl border border-betiq-800 bg-betiq-900 p-2 shadow-xl">
+            {searching && suggestions.length === 0 && (
+              <p className="px-3 py-2.5 text-sm text-betiq-500 animate-pulse">Searching players…</p>
+            )}
             {suggestions.map((name) => (
               <button
                 key={name}
@@ -86,7 +130,20 @@ function Analyzer() {
       </div>
 
       {/* Player content or empty state */}
-      {playerData ? (
+      {selectedPlayer && !playerData ? (
+        <div className="mt-12 text-center">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-betiq-900 text-betiq-500">
+            <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+            </svg>
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-betiq-300">{selectedPlayer}</h3>
+          <p className="mt-2 text-sm text-betiq-500">
+            Full AI analysis for this player unlocks when you sign in. Search another player to explore a preview.
+          </p>
+          <Link to="/sign-up" className="btn-gold mt-6 text-sm">Create a Free Account</Link>
+        </div>
+      ) : playerData ? (
         <div className="mt-8 space-y-8">
           {/* Player header */}
           <div className="card-betiq flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
@@ -384,5 +441,7 @@ function getPlayerData(name: string) {
     },
   };
 
-  return players[name] || players["LeBron James"];
+  // Return null for players without curated preview data — the UI shows a
+  // graceful "sign in for full analysis" state instead of mislabeled mock data.
+  return players[name] || null;
 }

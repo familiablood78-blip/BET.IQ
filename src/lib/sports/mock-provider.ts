@@ -31,6 +31,12 @@ const mockPlayers: Player[] = [
   // Soccer
   { id: "soc-001", name: "Christian Pulisic", sport: "Soccer", team: "AC Milan", position: "LW", number: 11, injuryStatus: "Active" },
   { id: "soc-002", name: "Lionel Messi", sport: "Soccer", team: "Inter Miami", position: "FW", number: 10, injuryStatus: "Active" },
+  // PGA
+  { id: "pga-001", name: "Rory McIlroy", sport: "PGA", team: "Northern Ireland", position: "Pro Golfer", injuryStatus: "Active" },
+  { id: "pga-002", name: "Scottie Scheffler", sport: "PGA", team: "United States", position: "Pro Golfer", injuryStatus: "Active" },
+  { id: "pga-003", name: "Jon Rahm", sport: "PGA", team: "Spain", position: "Pro Golfer", injuryStatus: "Active" },
+  { id: "pga-004", name: "Xander Schauffele", sport: "PGA", team: "United States", position: "Pro Golfer", injuryStatus: "Active" },
+  { id: "pga-005", name: "Collin Morikawa", sport: "PGA", team: "United States", position: "Pro Golfer", injuryStatus: "Active" },
 ];
 
 const mockGames: Game[] = [
