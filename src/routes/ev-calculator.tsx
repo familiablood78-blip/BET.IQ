@@ -11,9 +11,9 @@ function EvCalculator() {
   const [result, setResult] = useState<{
     impliedProb: number;
     expectedValue: number;
-    evPercent: number;
     edge: number;
     kellyStake: number;
+    projectedProb: number;
     isPositive: boolean;
   } | null>(null);
   const [error, setError] = useState("");
@@ -21,19 +21,31 @@ function EvCalculator() {
   const calculate = useCallback(() => {
     setError("");
 
-    const oddsNum = parseFloat(odds);
+    const oddsNum = parseInt(odds.replace(/^\+/, ""), 10);
     const probNum = parseFloat(prob);
 
     if (!odds || !prob) {
       setError("Please fill in both fields");
       return;
     }
+    if (!/^-?\d+$/.test(odds.trim()) || !/^\d*\.?\d*$/.test(prob.trim())) {
+      setError("Please enter valid numbers (e.g. odds -110, probability 55)");
+      return;
+    }
     if (isNaN(oddsNum) || isNaN(probNum)) {
       setError("Please enter valid numbers");
       return;
     }
-    if (probNum < 0 || probNum > 100) {
-      setError("Probability must be between 0% and 100%");
+    if (oddsNum === 0) {
+      setError("American odds cannot be zero — use +100 for even money");
+      return;
+    }
+    if (Math.abs(oddsNum) < 100) {
+      setError("American odds must be at least ±100 in magnitude (e.g. -110, +150)");
+      return;
+    }
+    if (probNum <= 0 || probNum >= 100) {
+      setError("Probability must be greater than 0% and less than 100%");
       return;
     }
 
@@ -48,18 +60,18 @@ function EvCalculator() {
     // Your probability as decimal
     const yourProb = probNum / 100;
 
-    // Expected value
+    // Expected value per $100 stake, accounting for American-odds payout
     const oddsDecimal = oddsNum > 0
       ? (oddsNum / 100) + 1
       : (100 / Math.abs(oddsNum)) + 1;
 
-    const ev = (yourProb * (oddsDecimal - 1)) - ((1 - yourProb) * 1);
-    const evPercent = ev * 100;
+    const evPerDollar = (yourProb * (oddsDecimal - 1)) - ((1 - yourProb) * 1);
+    const expectedValue = evPerDollar * 100;
 
-    // Edge
-    const edge = ((yourProb - impliedProb) / impliedProb) * 100;
+    // Edge in percentage points: projected probability (%) minus implied probability (%)
+    const edge = probNum - (impliedProb * 100);
 
-    // Kelly stake
+    // Kelly stake: f = (bp − q) / b, where b = decimal odds − 1, p = your probability, q = 1 − p
     const kelly = (oddsDecimal - 1) > 0
       ? ((yourProb * (oddsDecimal - 1)) - (1 - yourProb)) / (oddsDecimal - 1)
       : 0;
@@ -67,11 +79,11 @@ function EvCalculator() {
 
     setResult({
       impliedProb: impliedProb * 100,
-      expectedValue: ev,
-      evPercent,
+      expectedValue,
       edge,
       kellyStake,
-      isPositive: ev > 0,
+      projectedProb: probNum,
+      isPositive: expectedValue > 0,
     });
   }, [odds, prob]);
 
@@ -88,7 +100,7 @@ function EvCalculator() {
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-betiq-50">EV Calculator</h1>
         <p className="mt-1 text-sm text-betiq-400">
-          Calculate expected value and optimal stake size for any bet
+          Calculate expected value and betting edge for any bet
         </p>
       </div>
 
@@ -112,7 +124,10 @@ function EvCalculator() {
                     type="text"
                     placeholder="-110, +150, etc."
                     value={odds}
-                    onChange={(e) => setOdds(e.target.value.replace(/[^0-9-]/g, ""))}
+                    onChange={(e) => {
+                      setOdds(e.target.value.replace(/[^0-9-]/g, ""));
+                      setError("");
+                    }}
                     className="w-full rounded-lg border border-betiq-800 bg-betiq-900 py-3 pl-8 pr-4 text-sm text-betiq-100 placeholder-betiq-500 outline-none transition-colors focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/20"
                   />
                 </div>
@@ -128,7 +143,10 @@ function EvCalculator() {
                     type="text"
                     placeholder="e.g. 55"
                     value={prob}
-                    onChange={(e) => setProb(e.target.value.replace(/[^0-9.]/g, ""))}
+                    onChange={(e) => {
+                      setProb(e.target.value.replace(/[^0-9.]/g, ""));
+                      setError("");
+                    }}
                     className="w-full rounded-lg border border-betiq-800 bg-betiq-900 py-3 px-4 pr-8 text-sm text-betiq-100 placeholder-betiq-500 outline-none transition-colors focus:border-gold-500/50 focus:ring-1 focus:ring-gold-500/20"
                   />
                   <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-sm text-betiq-500">%</span>
@@ -178,7 +196,7 @@ function EvCalculator() {
                 <button
                   key={ref.odds}
                   type="button"
-                  onClick={() => setOdds(ref.odds)}
+                  onClick={() => { setOdds(ref.odds.replace(/^\+/, "")); setError(""); }}
                   className="flex w-full items-center justify-between rounded-lg px-3 py-1.5 text-xs text-betiq-400 transition-colors hover:bg-betiq-800"
                 >
                   <span className="font-medium text-betiq-300">{ref.odds}</span>
@@ -223,9 +241,10 @@ function EvCalculator() {
               {/* Results grid */}
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                 {[
-                  { label: "Expected Value", value: `${result.isPositive ? "+" : ""}$${result.expectedValue.toFixed(2)}`, sub: `${result.isPositive ? "+" : ""}${result.evPercent.toFixed(1)}%`, color: result.isPositive ? "text-green-400" : "text-red-400" },
+                  { label: "Expected Value", value: `${result.isPositive ? "+" : ""}$${result.expectedValue.toFixed(2)}`, sub: "per $100 stake", color: result.isPositive ? "text-green-400" : "text-red-400" },
                   { label: "Implied Probability", value: `${result.impliedProb.toFixed(1)}%`, sub: "from odds", color: "text-betiq-100" },
-                  { label: "Your Edge", value: `${result.edge > 0 ? "+" : ""}${result.edge.toFixed(1)}%`, sub: result.edge > 0 ? "You have an edge" : "No edge", color: result.edge > 0 ? "text-green-400" : "text-red-400" },
+                  { label: "Projected Probability", value: `${result.projectedProb.toFixed(1)}%`, sub: "your estimate", color: "text-betiq-100" },
+                  { label: "Edge", value: `${result.edge > 0 ? "+" : ""}${result.edge.toFixed(1)} pp`, sub: "projected − implied", color: result.edge > 0 ? "text-green-400" : "text-red-400" },
                   { label: "Kelly Stake", value: `${result.kellyStake.toFixed(1)}%`, sub: "of bankroll", color: "text-betiq-100" },
                   { label: "Fair Odds", value: `${((1 / (result.impliedProb / 100)) - 1) > 0 ? "+" : ""}${((1 / (result.impliedProb / 100)) - 1).toFixed(0)}`, sub: "break-even line", color: "text-betiq-100" },
                   { label: "Vig", value: `${(result.impliedProb - (1 / ((result.impliedProb / 100) > 0 ? ((1 / (result.impliedProb / 100))) : 1)) * 100).toFixed(1)}%`, sub: "market juice", color: "text-betiq-100" },
@@ -248,6 +267,13 @@ function EvCalculator() {
                   }
                 </p>
               </div>
+
+              {/* Disclaimer */}
+              <div className="rounded-lg border border-betiq-800 bg-betiq-900/50 px-4 py-3">
+                <p className="text-[11px] leading-relaxed text-betiq-500">
+                  Positive expected value does not guarantee a winning outcome. Results depend on the accuracy of your projected probability.
+                </p>
+              </div>
             </>
           ) : (
             <div className="flex h-full min-h-[400px] items-center justify-center">
@@ -259,7 +285,7 @@ function EvCalculator() {
                 </div>
                 <h3 className="mt-4 text-lg font-semibold text-betiq-300">Enter odds and probability</h3>
                 <p className="mt-2 text-sm text-betiq-500">
-                  Fill in the inputs to calculate expected value, edge, and optimal stake
+                  Fill in the inputs to calculate expected value, betting edge, and Kelly stake
                 </p>
               </div>
             </div>
