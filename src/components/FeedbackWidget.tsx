@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { submitFeedback } from "~/routes/ap./-feedback";
+import { submitFeedback } from "~/routes/api/-feedback";
 
 export function FeedbackWidget() {
   const [state, setState] = useState<"idle" | "thumbsDown" | "thanks">("idle");
