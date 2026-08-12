@@ -15,7 +15,6 @@ const feedbackStore: FeedbackEntry[] = [];
 export const submitFeedback = createServerFn({ method: "POST" })
   .validator((data: unknown) => data as Omit<FeedbackEntry, "timestamp">)
   .handler(async ({ data }) => {
-    await requireAuth();
     const entry: FeedbackEntry = {
       ...data,
       timestamp: new Date().toISOString(),
