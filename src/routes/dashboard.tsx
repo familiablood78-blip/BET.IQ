@@ -134,8 +134,8 @@ function Dashboard() {
           <p className="text-sm text-betiq-400">Your daily research dashboard</p>
         </div>
         <div className="mt-3 flex items-center gap-3 sm:mt-0">
-          <span className="badge-gold">Live</span>
-          <span className="text-xs text-betiq-500">Updated 2 min ago</span>
+          <span className="badge-gold">Research Tool</span>
+          <span className="text-xs text-betiq-500">Data shown is illustrative until live feeds are connected</span>
         </div>
       </div>
 
