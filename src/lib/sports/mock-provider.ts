@@ -31,12 +31,18 @@ const mockPlayers: Player[] = [
   // Soccer
   { id: "soc-001", name: "Christian Pulisic", sport: "Soccer", team: "AC Milan", position: "LW", number: 11, injuryStatus: "Active" },
   { id: "soc-002", name: "Lionel Messi", sport: "Soccer", team: "Inter Miami", position: "FW", number: 10, injuryStatus: "Active" },
+  { id: "soc-003", name: "Erling Haaland", sport: "Soccer", team: "Manchester City", position: "ST", number: 9, injuryStatus: "Active" },
+  { id: "soc-004", name: "Kylian Mbappé", sport: "Soccer", team: "Real Madrid", position: "FW", number: 9, injuryStatus: "Active" },
   // PGA
   { id: "pga-001", name: "Rory McIlroy", sport: "PGA", team: "Northern Ireland", position: "Pro Golfer", injuryStatus: "Active" },
   { id: "pga-002", name: "Scottie Scheffler", sport: "PGA", team: "United States", position: "Pro Golfer", injuryStatus: "Active" },
   { id: "pga-003", name: "Jon Rahm", sport: "PGA", team: "Spain", position: "Pro Golfer", injuryStatus: "Active" },
   { id: "pga-004", name: "Xander Schauffele", sport: "PGA", team: "United States", position: "Pro Golfer", injuryStatus: "Active" },
   { id: "pga-005", name: "Collin Morikawa", sport: "PGA", team: "United States", position: "Pro Golfer", injuryStatus: "Active" },
+  { id: "pga-006", name: "Tiger Woods", sport: "PGA", team: "United States", position: "Pro Golfer", injuryStatus: "Active" },
+  // Tennis
+  { id: "ten-001", name: "Carlos Alcaraz", sport: "Tennis", team: "Spain", position: "Pro Tennis Player", injuryStatus: "Active" },
+  { id: "ten-002", name: "Jannik Sinner", sport: "Tennis", team: "Italy", position: "Pro Tennis Player", injuryStatus: "Active" },
 ];
 
 const mockGames: Game[] = [
