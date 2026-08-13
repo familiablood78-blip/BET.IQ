@@ -31,40 +31,23 @@ export const getSubscription = createServerFn({ method: "GET" })
   });
 
 /**
- * POST /api/subscriptions/upgrade — Upgrade to Premium (placeholder)
- * In production, this creates a Stripe Checkout session.
+ * POST /api/subscriptions/upgrade — Upgrade to Premium
+ *
+ * FAIL CLOSED — production requirement. Premium must NEVER be granted
+ * unless a real Stripe Checkout payment has been created AND its success
+ * verified (payment-success webhook / session retrieval). Stripe Checkout is
+ * NOT implemented yet, so this endpoint rejects EVERY call. It never updates
+ * subscriptions.tier, subscriptions.status, or users.is_premium —
+ * regardless of whether STRIPE_SECRET_KEY is present (a configured key is NOT
+ * a verified payment). Remove this hard fail only when real Stripe Checkout
+ * session creation + payment verification are implemented.
  */
 export const upgradeToPremium = createServerFn({ method: "POST" })
   .handler(async () => {
-    const auth = await requireAuth();
-    const client = sql();
-
-    // Check if already premium
-    const existing = await client`
-      SELECT tier, status FROM subscriptions 
-      WHERE user_id = ${auth.userId} AND status = 'active' 
-      LIMIT 1
-    `;
-    if (existing.length > 0 && existing[0].tier === "premium") {
-      throw new Error("Already a Premium subscriber");
-    }
-
-    // Placeholder: In production, create Stripe Checkout session here
-    // const session = await stripe.checkout.sessions.create({ ... });
-    // return { url: session.url };
-
-    // For now, simulate upgrade
-    await client`
-      UPDATE subscriptions 
-      SET tier = 'premium', status = 'active', updated_at = NOW()
-      WHERE user_id = ${auth.userId}
-    `;
-    await client`
-      UPDATE users SET is_premium = true, updated_at = NOW()
-      WHERE id = ${auth.userId}
-    `;
-
-    return { success: true, tier: "premium", message: "Upgraded to Premium" };
+    await requireAuth();
+    throw new Error(
+      "Premium checkout is not available yet — Stripe payment verification is not implemented on this deployment."
+    );
   });
 
 /**

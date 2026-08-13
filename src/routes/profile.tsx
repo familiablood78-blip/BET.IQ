@@ -115,7 +115,7 @@ function ProfileInner() {
                 <thead><tr className="border-b border-betiq-800/50 text-left text-[10px] font-medium uppercase tracking-wider text-betiq-500">
                   <th className="pb-2 pr-3">Feature</th><th className="pb-2 pr-3 text-center">Free</th><th className="pb-2 text-center">Premium</th></tr></thead>
                 <tbody className="divide-y divide-betiq-800/30">
-                  {[{f:"AI Analyses / Day",free:"5",prem:"Unlimited"},{f:"EV Calculator",free:"—",prem:"✓"},{f:"Parlay Builder",free:"—",prem:"✓"},{f:"Premium Alerts",free:"—",prem:"✓"},{f:"Advanced Stats",free:"—",prem:"✓"},{f:"Bet Tracking",free:"50 bets",prem:"Unlimited"},{f:"Ads",free:"Yes",prem:"None"},{f:"Support",free:"Standard",prem:"Priority"}]
+                  {[{f:"AI Analyses / Day",free:"10",prem:"Unlimited"},{f:"EV Calculator",free:"—",prem:"✓"},{f:"Parlay Builder",free:"—",prem:"✓"},{f:"Premium Alerts",free:"—",prem:"✓"},{f:"Advanced Stats",free:"—",prem:"✓"},{f:"Bet Tracking",free:"50 bets",prem:"Unlimited"},{f:"Ads",free:"Yes",prem:"None"},{f:"Support",free:"Standard",prem:"Priority"}]
                     .map((r,i)=>(<tr key={i} className="text-xs"><td className="py-2.5 pr-3 text-betiq-300">{r.f}</td>
                       <td className="py-2.5 pr-3 text-center text-betiq-400">{r.free}</td>
                       <td className="py-2.5 text-center font-medium text-gold-400">{r.prem}</td></tr>))}
