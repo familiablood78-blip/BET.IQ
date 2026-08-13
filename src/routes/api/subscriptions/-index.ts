@@ -33,37 +33,21 @@ export const getSubscription = createServerFn({ method: "GET" })
 /**
  * POST /api/subscriptions/upgrade — Upgrade to Premium
  *
- * Premium is granted ONLY through a real Stripe Checkout session. Stripe is
- * not wired up yet, so this endpoint FAILS CLOSED: it never simulates a
- * successful payment or silently flips a user to premium. When Stripe is
- * configured (STRIPE_SECRET_KEY present), create the Checkout session here and
- * return its URL; the payment success webhook then upgrades the user.
+ * FAIL CLOSED — production requirement. Premium must NEVER be granted
+ * unless a real Stripe Checkout payment has been created AND its success
+ * verified (payment-success webhook / session retrieval). Stripe Checkout is
+ * NOT implemented yet, so this endpoint rejects EVERY call. It never updates
+ * subscriptions.tier, subscriptions.status, or users.is_premium —
+ * regardless of whether STRIPE_SECRET_KEY is present (a configured key is NOT
+ * a verified payment). Remove this hard fail only when real Stripe Checkout
+ * session creation + payment verification are implemented.
  */
 export const upgradeToPremium = createServerFn({ method: "POST" })
   .handler(async () => {
-    const auth = await requireAuth();
-    const client = sql();
-
-    // Check if already premium
-    const existing = await client`
-      SELECT tier, status FROM subscriptions 
-      WHERE user_id = ${auth.userId} AND status = 'active' 
-      LIMIT 1
-    `;
-    if (existing.length > 0 && existing[0].tier === "premium") {
-      throw new Error("Already a Premium subscriber");
-    }
-
-    // Fail closed: no Stripe, no fake upgrades. This endpoint must NEVER
-    // grant premium features without a real payment.
-    if (!process.env.STRIPE_SECRET_KEY) {
-      throw new Error("Premium checkout is not available yet — payments are not configured on this deployment.");
-    }
-
-    // In production: create a Stripe Checkout session here and return its URL.
-    // const session = await stripe.checkout.sessions.create({ ... });
-    // return { url: session.url };
-    throw new Error("Stripe checkout integration is not implemented yet");
+    await requireAuth();
+    throw new Error(
+      "Premium checkout is not available yet — Stripe payment verification is not implemented on this deployment."
+    );
   });
 
 /**
