@@ -2,45 +2,102 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireAuth } from "~/lib/auth";
 import { logUsage, countUsage } from "~/lib/db/migrate";
 import { sql } from "~/db";
-import { sports } from "~/lib/sports";
-import type { League } from "~/lib/sports";
+import {
+  sportsData,
+  type League,
+  type RawProviderProp,
+  type ResolvedProviderProp,
+  resolveCanonicalPlayer,
+  resolveCanonicalEvent,
+  assertPlayerInEvent,
+  EntityResolutionError,
+  validateLiveProp,
+  calculateEv,
+  type AnalysisEligibleProp,
+} from "~/lib/sports";
+
+/**
+ * POST /api/players/analysis — PRODUCTION analysis route (WS1b §9).
+ *
+ * The required production chain, physically, in order:
+ *   HTTP request → validated provider request → provider response validation
+ *   → canonical player/event resolution → LivePropsValidator →
+ *   AnalysisEligibleProp issuance → EVEngine → response.
+ *
+ * Hard rules:
+ *   - NEVER calls generateMockAnalysis; NO random confidence; NO fabricated
+ *     projected statistics; nothing is persisted unless it originated from an
+ *     issued AnalysisEligibleProp.
+ *   - Client input is NOT trusted for player identity, event identity, line,
+ *     odds, provider identity, stat value, probability, EV, or confidence.
+ *     Those are all derived server-side from validated provider data.
+ *   - Provider failure / unresolved identity / unvalidated prop ⇒ honest
+ *     DataState — never AVAILABLE, never fabricated.
+ *   - Exactly ONE production call path for calculateEv exists in this file
+ *     (evForIssuedProp). A server-side fair-probability source does not exist
+ *     yet, so no EV is ever invented.
+ */
 
 interface AnalysisInput {
   playerName: string;
   sport: string;
-  propType: string;
-  propLine: number;
-  league?: string;
-  playerTeam?: string;
-  opponent?: string;
-  gameDate?: string;
+  /** Market hint (e.g. "player_points"). Not trusted — server selects from validated props. */
+  market?: string;
 }
 
-/**
- * POST /api/players/analysis
- * Analyzes a player prop using the sports data provider + AI engine.
- *
- * Auto-saves every analysis to ai_analyses with:
- *   - player_name, sport, prop_type, prop_line
- *   - bet_type (derived from recommendation)
- *   - confidence_score, recommendation, reasoning, key_factors
- *   - projected_stat
- *   - confidence_tier (high/medium/low based on confidence score)
- *
- * Returns the analysis result including the saved ID for future reference
- * (e.g., settling the prediction later via /api/analytics/settle).
- */
+type HonestAnalysisResponse =
+  | {
+      ok: true;
+      state: "AVAILABLE";
+      prop: IssuedPropView;
+      ev: EvView | null;
+      reason?: string;
+    }
+  | {
+      ok: false;
+      state: "DEMO" | "EMPTY" | "NOT_SUPPORTED" | "TEMPORARILY_UNAVAILABLE" | "UNVERIFIED" | "STALE_CACHED";
+      reason: string;
+    };
+
+export interface IssuedPropView {
+  provider: string;
+  providerEventId: string;
+  canonicalEventId: string;
+  providerPlayerId: string;
+  canonicalPlayerId: string;
+  playerName: string;
+  sport: string;
+  market: string;
+  statType: string;
+  period: string;
+  sportsbook: string;
+  line: number;
+  overOdds: number;
+  underOdds: number;
+  retrievalTimestamp: string;
+  marketId: string;
+}
+
+export interface EvView {
+  side: "over" | "under";
+  ev: number;
+  fairProbability: number;
+  impliedProbability: number;
+  odds: number;
+}
+
+type EligibleMarket = AnalysisEligibleProp;
+
 export const analyzePlayerProp = createServerFn({ method: "POST" })
   .validator((data: AnalysisInput) => data)
-  .handler(async ({ data }) => {
+  .handler(async ({ data }): Promise<HonestAnalysisResponse> => {
     const auth = await requireAuth();
     const userId = auth.userId!;
 
-    // Check free tier usage limit (10 analyses per day for free users)
+    // Free-tier limit (unchanged semantics).
     const client = sql();
     const subRows = await client`SELECT tier FROM subscriptions WHERE user_id = ${userId} AND status = 'active'`;
     const isFree = subRows.length === 0 || subRows[0].tier === "free";
-
     if (isFree) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -50,182 +107,213 @@ export const analyzePlayerProp = createServerFn({ method: "POST" })
       }
     }
 
-    const { playerName, sport, propType, propLine, league, gameDate } = data;
+    const playerName = String(data.playerName ?? "").trim();
+    const sport = String(data.sport ?? "").toUpperCase() as League;
+    if (playerName === "") throw new Error("playerName is required");
 
-    // Fetch player stats from the sports provider to feed into AI analysis
-    const leagueTyped = (league ?? sport) as League;
-    const players = await sports.searchPlayers(playerName, leagueTyped);
-    const player = players.find(p => p.name.toLowerCase() === playerName.toLowerCase());
-
-    // Fetch any relevant props for context
-    let gameProps: Array<{ propType: string; line: number }> = [];
-    if (player) {
-      const featuredGames = await sports.getGames(leagueTyped);
-      // Find a game involving this player's team
-      const playerGame = featuredGames.find(
-        g => g.homeTeam === player.team || g.awayTeam === player.team
-      );
-      if (playerGame) {
-        const props = await sports.getGameProps(playerGame.id, leagueTyped);
-        gameProps = props.filter(p => p.playerId === player.id);
-      }
+    // ── (1) validated provider request — player search ─────────────────────────
+    const search = await sportsData.searchPlayers(playerName, sport);
+    if (search.state === "DEMO") {
+      return { ok: false, state: "DEMO", reason: "provider is demo-only; production analysis requires a live configured provider" };
+    }
+    if (search.state !== "AVAILABLE" || !search.data) {
+      return { ok: false, state: search.state, reason: search.reason ?? "player search unavailable" };
+    }
+    const players = search.data;
+    const player = players.find((p) => p.name.toLowerCase() === playerName.toLowerCase());
+    if (!player) {
+      return { ok: false, state: "EMPTY", reason: `no player matched "${playerName}"` };
     }
 
-    // Generate AI analysis (calls mock or OpenAI depending on OPENAI_API_KEY)
-    const analysis = await generateAnalysis({
-      playerName,
-      sport: leagueTyped,
-      propType,
-      propLine,
-      player,
-      availableProps: gameProps,
-    });
+    // ── (2) canonical PLAYER resolution (provider id ⇒ canonical id, fail-closed) ──
+    let canonicalPlayer: ReturnType<typeof resolveCanonicalPlayer>;
+    try {
+      canonicalPlayer = resolveCanonicalPlayer({
+        provider: providerIdForKind(),
+        providerPlayerId: player.id,
+        sport: player.sport,
+        team: player.team,
+        name: player.name,
+      });
+    } catch (err) {
+      const e = toEntityError(err);
+      return { ok: false, state: "UNVERIFIED", reason: `player identity not verifiable: ${e.kind}` };
+    }
 
-    // Derive bet_type from recommendation
-    let betType: string;
-    if (analysis.recommendation === "lean_over") betType = "over";
-    else if (analysis.recommendation === "lean_under") betType = "under";
-    else betType = "not_recommended";
+    // ── (3) canonical EVENT resolution + player-in-event guard ─────────────────────
+    const gamesResult = await sportsData.getGames(player.sport);
+    if (gamesResult.state === "DEMO") return { ok: false, state: "DEMO", reason: "events are demo data" };
+    if (gamesResult.state !== "AVAILABLE" || !gamesResult.data) {
+      return { ok: false, state: gamesResult.state, reason: gamesResult.reason ?? "no games" };
+    }
+    const event = gamesResult.data.find(
+      (g) => g.homeTeam === canonicalPlayer.team || g.awayTeam === canonicalPlayer.team,
+    );
+    if (!event) return { ok: false, state: "EMPTY", reason: "no current event for player" };
 
-    // Determine confidence tier
-    let confidenceTier: string;
-    if (analysis.confidenceScore >= 80) confidenceTier = "high";
-    else if (analysis.confidenceScore >= 60) confidenceTier = "medium";
-    else confidenceTier = "low";
+    let canonicalEvent: ReturnType<typeof resolveCanonicalEvent>;
+    try {
+      canonicalEvent = resolveCanonicalEvent({
+        provider: canonicalPlayer.provider,
+        providerEventId: event.id,
+        sport: event.sport,
+        participants: [event.homeTeam, event.awayTeam],
+      });
+    } catch (err) {
+      const e = toEntityError(err);
+      return { ok: false, state: "UNVERIFIED", reason: `event identity not verifiable: ${e.kind}` };
+    }
+    try {
+      assertPlayerInEvent(canonicalPlayer, canonicalEvent);
+    } catch (err) {
+      const e = toEntityError(err);
+      return { ok: false, state: "UNVERIFIED", reason: `player-event mismatch: ${e.kind}` };
+    }
 
-    // Save the analysis with expanded fields
-    const result = await client`
-      INSERT INTO ai_analyses (
-        user_id, player_name, sport, league, prop_type, prop_line,
-        bet_type, confidence_score, recommendation, reasoning,
-        key_factors, projected_stat, confidence_tier, game_date,
-        outcome, result
-      ) VALUES (
-        ${userId}, ${playerName}, ${sport}, ${league ?? null}, ${propType}, ${propLine},
-        ${betType}, ${analysis.confidenceScore}, ${analysis.recommendation},
-        ${analysis.reasoning}, ${JSON.stringify(analysis.keyFactors)},
-        ${analysis.projectedStat ?? null}, ${confidenceTier},
-        ${gameDate ?? null}, 'pending', 'pending'
-      )
-      RETURNING id, created_at
-    `;
+    // ── (4) props with provenance → RawProviderProp ─────────────────────────────────
+    const propsResult = await sportsData.getPlayerProps(event.id, canonicalPlayer.canonicalPlayerId, player.sport);
+    if (propsResult.state === "DEMO") return { ok: false, state: "DEMO", reason: "props are demo data" };
+    if (propsResult.state !== "AVAILABLE" || !propsResult.data) {
+      return { ok: false, state: propsResult.state, reason: propsResult.reason ?? "props unavailable" };
+    }
+    const rawProps = (propsResult.data as RawProviderProp[]).filter(
+      (p) => p.playerName.toLowerCase() === playerName.toLowerCase(),
+    );
 
-    await logUsage(userId, "analysis", { playerName, sport, propType });
+    // ── (5) LivePropsValidator — the mandatory gate, issues AnalysisEligibleProp ────
+    const eligible: EligibleMarket[] = [];
+    const rejected: string[] = [];
+    for (const raw of rawProps) {
+      const resolved: ResolvedProviderProp = {
+        ...raw,
+        canonicalEventId: canonicalEvent.canonicalEventId,
+        canonicalPlayerId: canonicalPlayer.canonicalPlayerId,
+        canonicalPlayerName: canonicalPlayer.canonicalPlayerId, // canonical id is authoritative; name is not trusted
+      };
+      const outcome = validateLiveProp({ prop: resolved });
+      if (outcome.ok) eligible.push(outcome.prop);
+      else rejected.push(`${raw.market}:${outcome.reasons.join(",")}`);
+    }
+
+    const wantedMarket = data.market ?? rawProps[0]?.market;
+    const target = eligible.find((p) => p.raw.market === wantedMarket) ?? eligible[0];
+    if (!target) {
+      return {
+        ok: false,
+        state: "EMPTY",
+        reason: rejected.length > 0 ? `no prop passed validation (${rejected.slice(0, 5).join("; ")})` : "no props for this player",
+      };
+    }
+
+    // ── (6) EVEngine — the SINGLE production calculateEv path (evPointForIssued) ────
+    const ev = evPointForIssued(target);
+
+    const propView: IssuedPropView = {
+      provider: target.raw.provider,
+      providerEventId: target.raw.providerEventId,
+      canonicalEventId: target.raw.canonicalEventId,
+      providerPlayerId: target.raw.providerPlayerId,
+      canonicalPlayerId: target.raw.canonicalPlayerId,
+      playerName: target.raw.playerName,
+      sport: target.raw.sport,
+      market: target.raw.market,
+      statType: target.raw.statType,
+      period: target.raw.period,
+      sportsbook: target.raw.sportsbook,
+      line: target.raw.outcomes[0].line,
+      overOdds: sideOdds(target, "over"),
+      underOdds: sideOdds(target, "under"),
+      retrievalTimestamp: target.raw.retrievalTimestamp,
+      marketId: target.marketId,
+    };
+
+    // ── (7) PERSIST ONLY from issued AnalysisEligibleProp + real EV (WS1b §13). ─────
+    //      Nothing is persisted today because no fair-probability source exists — the
+    //      route returns the validated prop + honest "no EV" note instead of writing a
+    //      fabricated analysis row. The guarded persist path below is the ONLY writer.
+    if (ev !== null) {
+      const prov = {
+        provider: target.raw.provider,
+        providerEventId: target.raw.providerEventId,
+        canonicalEventId: target.raw.canonicalEventId,
+        providerPlayerId: target.raw.providerPlayerId,
+        canonicalPlayerId: target.raw.canonicalPlayerId,
+        market: target.raw.market,
+        statType: target.raw.statType,
+        period: target.raw.period,
+        line: target.raw.outcomes[0].line,
+        overOdds: sideOf(target, "over"),
+        underOdds: sideOf(target, "under"),
+        sportsbook: target.raw.sportsbook,
+        retrievalTimestamp: target.raw.retrievalTimestamp,
+        marketId: target.marketId,
+      };
+      const recommendation = ev.side === "over" ? ("lean_over" as const) : ("lean_under" as const);
+      const confidence = Math.min(99, Math.round(ev.fairProbability * 100));
+      await client`
+        INSERT INTO ai_analyses (
+          user_id, player_name, sport, league, prop_type, prop_line,
+          bet_type, confidence_score, recommendation, reasoning,
+          key_factors, projected_stat, analysis_data, event_id, outcome, result, confidence_tier
+        ) VALUES (
+          ${userId}, ${target.raw.playerName}, ${target.raw.sport}, null, ${target.raw.statType},
+          ${target.raw.outcomes[0].line}, ${recommendation}, ${confidence}, ${recommendation},
+          ${`EV ${Number(ev.ev).toFixed(4)} per unit from validated provider prop (${target.marketId})`},
+          ${JSON.stringify([])}, null, ${JSON.stringify(prov)}, ${target.raw.providerEventId},
+          'pending', 'pending', ${"medium"}
+        )
+        RETURNING id
+      `;
+      await logUsage(userId, "analysis", { playerName, sport, market: target.raw.market });
+    }
 
     return {
-      id: result[0].id,
-      playerName,
-      sport,
-      propType,
-      propLine,
-      betType,
-      confidenceScore: analysis.confidenceScore,
-      confidenceTier,
-      recommendation: analysis.recommendation,
-      reasoning: analysis.reasoning,
-      keyFactors: analysis.keyFactors,
-      projectedStat: analysis.projectedStat ?? null,
-      createdAt: String(result[0].created_at),
+      ok: true,
+      state: "AVAILABLE",
+      prop: propView,
+      ev,
+      reason: ev === null ? "EV requires a server-side fair-probability model; none configured" : undefined,
     };
   });
 
-/* ---------- AI Analysis Engine ---------- */
-
-interface AnalysisContext {
-  playerName: string;
-  sport: League;
-  propType: string;
-  propLine: number;
-  player?: { id: string; team: string; position: string; injuryStatus?: string };
-  availableProps: Array<{ propType: string; line: number }>;
-}
-
-interface AnalysisResult {
-  confidenceScore: number;
-  recommendation: "lean_over" | "lean_under" | "no_bet";
-  reasoning: string;
-  projectedStat?: number;
-  keyFactors: Array<{ factor: string; impact: "positive" | "negative"; detail: string }>;
-}
-
-async function generateAnalysis(ctx: AnalysisContext): Promise<AnalysisResult> {
-  const openAiKey = process.env.OPENAI_API_KEY;
-
-  if (openAiKey) {
-    try {
-      return await callOpenAI(ctx);
-    } catch {
-      // Fall back to mock if OpenAI fails
-      return generateMockAnalysis(ctx);
-    }
-  }
-
-  return generateMockAnalysis(ctx);
-}
-
-async function callOpenAI(ctx: AnalysisContext): Promise<AnalysisResult> {
-  const prompt = `Analyze this player prop bet:
-
-Player: ${ctx.playerName}
-Sport: ${ctx.sport}
-Prop: ${ctx.propType}
-Line: ${ctx.propLine}
-Position: ${ctx.player?.position ?? "Unknown"}
-Team: ${ctx.player?.team ?? "Unknown"}
-Injury Status: ${ctx.player?.injuryStatus ?? "Unknown"}
-
-Return a JSON object with:
-- confidenceScore (0-100)
-- recommendation ("lean_over", "lean_under", or "no_bet")
-- projectedStat (estimated stat value)
-- reasoning (2-3 sentences)
-- keyFactors (array of {factor, impact: "positive"|"negative", detail})`;
-
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-      response_format: { type: "json_object" },
-    }),
-  });
-
-  if (!res.ok) throw new Error(`OpenAI error: ${res.status}`);
-  const body = await res.json() as { choices: Array<{ message: { content: string } }> };
-  const parsed = JSON.parse(body.choices[0].message.content) as AnalysisResult;
-  return parsed;
-}
-
-function generateMockAnalysis(ctx: AnalysisContext): AnalysisResult {
-  const score = Math.floor(Math.random() * 41) + 40;
-  let recommendation: AnalysisResult["recommendation"] = "no_bet";
-  if (score > 65) recommendation = "lean_over";
-  else if (score > 50) recommendation = Math.random() > 0.5 ? "lean_over" : "lean_under";
-
-  // Generate a realistic projected stat
-  const variance = (Math.random() - 0.5) * (ctx.propLine * 0.2);
-  const projectedStat = Math.round((ctx.propLine + variance) * 10) / 10;
-
+/* -----------------------------------------------------------------------------
+ * The single production calculateEv invocation path (WS1b §7).
+ * fairProbability must come from a REAL server-side source. There is none
+ * configured today (PROBABILITY_SOURCE unset) — so evPointForIssued returns
+ * null and NO EV is ever fabricated. When a genuine probability source lands,
+ * this stays the only call site.
+ * --------------------------------------------------------------------------- */
+function evPointForIssued(prop: EligibleMarket): EvView | null {
+  const fairProbability = serverFairProbability(prop);
+  if (fairProbability === null) return null;
+  const side: "over" | "under" = fairProbability >= 0.5 ? "over" : "under";
+  const result = calculateEv(prop, fairProbability, side);
   return {
-    confidenceScore: score,
-    recommendation,
-    projectedStat: Math.max(0, projectedStat),
-    reasoning: `Based on ${ctx.playerName}'s recent form and matchup, ${
-      recommendation === "lean_over" ? "the OVER looks promising" :
-      recommendation === "lean_under" ? "the UNDER is favored" :
-      "this is a stay-away spot"
-    }. ${ctx.playerName} has been ${
-      score > 60 ? "trending well" : "struggling"
-    } against this opponent and the prop line of ${ctx.propLine} ${ctx.propType.toLowerCase()} reflects the matchup dynamics.`,
-    keyFactors: [
-      { factor: "Recent form", impact: score > 60 ? "positive" : "negative", detail: `${score > 60 ? "Above average" : "Below average"} performance in last 5 games` },
-      { factor: "Matchup", impact: score > 55 ? "positive" : "negative", detail: `Opponent ${score > 55 ? "allows" : "limits"} this prop type` },
-      { factor: "Injury Status", impact: ctx.player?.injuryStatus === "Active" ? "positive" : "negative", detail: ctx.player?.injuryStatus ?? "Unknown" },
-    ],
+    side: result.side,
+    ev: result.ev,
+    fairProbability: result.fairProbability,
+    impliedProbability: result.impliedProbability,
+    odds: result.odds,
   };
+}
+
+/** Real fair-probability model source. Today: none exist, so null (honest). */
+function serverFairProbability(_prop: EligibleMarket): number | null {
+  // Future integration points (real models only; never stash a constant here):
+  //   - OPENAI_PROBABILITY_API (default) → real model probability
+  //   - MLE_PROBABILITY_ENDPOINT → real endpoint
+  return null;
+}
+
+function sideOf(prop: EligibleMarket, side: "over" | "under"): number {
+  const o = prop.raw.outcomes.find((x) => x.side === side);
+  return o?.odds ?? Number.NaN;
+}
+
+function toEntityError(err: unknown): EntityResolutionError {
+  return err instanceof EntityResolutionError ? err : new EntityResolutionError("AMBIGUOUS", String(err));
+}
+
+function providerIdForKind(): string {
+  return sportsData.kind() === "real" ? "real-provider" : sportsData.kind();
 }

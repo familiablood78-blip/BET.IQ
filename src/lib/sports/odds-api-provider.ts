@@ -3,9 +3,16 @@
  *
  * Production sports data provider using The Odds API (https://the-odds-api.com/).
  * Requires ODDS_API_KEY in environment. Implements SportsDataProvider interface.
+ *
+ * WS1b §3: player-prop normalization lives in provider-normalization.ts.
+ * The known-broken mapping (raw League in URL instead of sport key; OVER/UNDER
+ * sharing one price; playerName "Over"/"Under"; odds defaulting to zero) is
+ * replaced here — see normalizeOddsApiProps / pairOddsApiMarket.
  */
 import type { SportsDataProvider } from "./provider";
 import type { Player, Game, Odds, Prop, Injury, PlayerStats, League } from "./types";
+import { DataState } from "./datastate";
+import { normalizeOddsApiProps, oddsApiSportKey, type OddsApiGame } from "./provider-normalization";
 
 const SPORT_KEY_MAP: Record<string, string> = {
   NBA: "basketball_nba",
@@ -17,12 +24,40 @@ const SPORT_KEY_MAP: Record<string, string> = {
   Soccer: "soccer_usa_mls",
   PGA: "golf_pga",
   UFC: "mma_mixed_martial_arts",
+  WNBA: "basketball_wnba",
+  Tennis: "tennis_atp",
 };
 
 function apiKey(): string {
   const k = process.env.ODDS_API_KEY;
   if (!k) throw new Error("ODDS_API_KEY not set");
   return k;
+}
+
+/** Convert a normalized RawProviderProp (provenance-complete) into the app Prop shape. */
+function propFromRaw(raw: import("./types").RawProviderProp): Prop {
+  const over = raw.outcomes.find((o) => o.side === "over");
+  const under = raw.outcomes.find((o) => o.side === "under");
+  return {
+    id: `${raw.providerEventId}-${raw.market}-${raw.playerName}`,
+    sport: raw.sport,
+    eventId: raw.providerEventId,
+    playerId: raw.providerPlayerId,
+    playerName: raw.playerName,
+    propType: raw.statType,
+    line: over?.line ?? under?.line ?? 0,
+    overOdds: over?.odds ?? 0,
+    underOdds: under?.odds ?? 0,
+    sportsbook: raw.sportsbook,
+    lastUpdated: raw.retrievalTimestamp,
+    provider: raw.provider,
+    providerEventId: raw.providerEventId,
+    providerPlayerId: raw.providerPlayerId,
+    market: raw.market,
+    statType: raw.statType,
+    period: raw.period,
+    retrievalTimestamp: raw.retrievalTimestamp,
+  };
 }
 
 async function get<T>(path: string, params: Record<string, string> = {}): Promise<T> {
@@ -47,39 +82,23 @@ export const oddsApiProvider: SportsDataProvider = {
     return null;
   },
 
-  async getPlayerProps(eventId: string, playerId: string, _sport: League): Promise<Prop[]> {
-    const data = await get<Array<Record<string, unknown>>>(`/sports/${_sport}/events/${eventId}/odds`, { regions: "us", markets: "player_points,player_assists,player_rebounds,player_pass_yds", oddsFormat: "american" });
-    const props: Prop[] = [];
-    const game = data?.[0] as Record<string, unknown> | undefined;
-    const bookmakers = (game?.bookmakers as Array<Record<string, unknown>>) || [];
-    for (const book of bookmakers) {
-      for (const market of (book.markets as Array<Record<string, unknown>>) || []) {
-        for (const outcome of (market.outcomes as Array<Record<string, unknown>>) || []) {
-          props.push({
-            id: `${eventId}-${market.key}-${outcome.name}`,
-            sport: _sport,
-            eventId,
-            playerId,
-            playerName: String(outcome.name || ""),
-            propType: String(market.key || ""),
-            line: Number(outcome.point ?? 0),
-            overOdds: Number(outcome.price ?? 0),
-            underOdds: Number(outcome.price ?? 0),
-            sportsbook: String(book.title || ""),
-            lastUpdated: String(book.last_update || ""),
-          });
-        }
-      }
-    }
-    return props;
+  async getPlayerProps(eventId: string, playerId: string, sport: League): Promise<Prop[]> {
+    const sportKey = oddsApiSportKey(sport);
+    if (!sportKey) return []; // league has no odds-api coverage → EMPTY, never guessed
+    const data = await get<OddsApiGame[]>(`/sports/${sportKey}/events/${eventId}/odds`, { regions: "us", markets: "player_points,player_assists,player_rebounds,player_pass_yds,player_pass_td,player_rush_yds,player_recv_yds,player_home_runs,player_total_bases,player_strokes,player_birdies", oddsFormat: "american" });
+    const normalized = normalizeOddsApiProps(data, sport as League);
+    if (normalized.state !== DataState.AVAILABLE || !normalized.data) return [];
+    return normalized.data.map(propFromRaw);
   },
 
   async getGameProps(eventId: string, _sport: League): Promise<Prop[]> {
     return this.getPlayerProps(eventId, "", _sport);
   },
 
-  async getGameOdds(eventId: string, _sport: League): Promise<Odds[]> {
-    const data = await get<Array<Record<string, unknown>>>(`/sports/${_sport}/events/${eventId}/odds`, { regions: "us", markets: "h2h,spreads,totals", oddsFormat: "american" });
+  async getGameOdds(eventId: string, sport: League): Promise<Odds[]> {
+    const sportKey = oddsApiSportKey(sport);
+    if (!sportKey) return [];
+    const data = await get<Array<Record<string, unknown>>>(`/sports/${sportKey}/events/${eventId}/odds`, { regions: "us", markets: "h2h,spreads,totals", oddsFormat: "american" });
     const game = data?.[0] as Record<string, unknown> | undefined;
     const bookmakers = (game?.bookmakers as Array<Record<string, unknown>>) || [];
     return bookmakers.map((b) => {

@@ -71,6 +71,65 @@ export interface Prop {
   underOdds: number;
   sportsbook: string;
   lastUpdated: string; // ISO 8601
+  // ---- WS1b provenance (every live prop carries these in production) ----
+  provider?: string;            // providerId, e.g. "odds-api" | "sportradar"
+  providerEventId?: string;     // provider's event id
+  canonicalEventId?: string;    // BetIQ canonical event id
+  providerPlayerId?: string;    // provider's player id
+  canonicalPlayerId?: string;   // BetIQ canonical player id
+  market?: string;              // e.g. "player_points", "player_birdies"
+  statType?: string;            // e.g. "points", "birdies", "passing_yards"
+  period?: string;              // e.g. "game", "round", "match", "regulation"
+  side?: PropSide;              // when representing a single side
+  retrievalTimestamp?: string;  // ISO 8601, when the data was retrieved/verified (never refreshed on read)
+}
+
+/** One side of an over/under market. */
+export type PropSide = "over" | "under";
+
+export interface PropOutcome {
+  side: PropSide;
+  /** The numeric line, e.g. 23.5 points. Must be finite. */
+  line: number;
+  /** American odds, e.g. -110. Must be finite, non-zero, |odds| >= 100. */
+  odds: number;
+}
+
+/**
+ * A provider-originated prop BEFORE canonical resolution / validation.
+ * Carries the full provenance required by WS1b §3. Nothing in this interface
+ * is trusted: `canonical*` fields are absent or unverified until the entity
+ * resolver and LivePropsValidator have run.
+ */
+export interface RawProviderProp {
+  provider: string;
+  providerEventId: string;
+  providerPlayerId: string;
+  sport: League;
+  league?: string;
+  market: string;
+  statType: string;
+  period: string;
+  playerName: string;
+  team?: string;
+  eventName?: string; // home @ away / participants, secondary evidence only
+  sportsbook: string;
+  /** Exactly two outcomes (one over, one under) are required. */
+  outcomes: PropOutcome[];
+  /** ISO 8601 retrieval timestamp from the provider fetch. */
+  retrievalTimestamp: string;
+}
+
+/**
+ * A prop whose provider provenance has passed provider validation AND
+ * canonical entity resolution, and is ready for the LivePropsValidator.
+ * Canonical IDs are REQUIRED here — unknown/contradictory identities fail
+ * closed in the resolver before this shape is produced.
+ */
+export interface ResolvedProviderProp extends RawProviderProp {
+  canonicalEventId: string;
+  canonicalPlayerId: string;
+  canonicalPlayerName: string;
 }
 
 export interface Injury {
