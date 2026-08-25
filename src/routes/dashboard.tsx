@@ -80,10 +80,10 @@ const alerts = [
 ];
 
 const newsItems = [
-  { title: "Jokic records 5th triple-double in last 7 games", league: "NBA", time: "2h ago" },
-  { title: "Aaron Judge on pace for 55+ HR season", league: "MLB", time: "4h ago" },
-  { title: "Mahomes: 'Feeling great' after ankle scare", league: "NFL", time: "6h ago" },
-  { title: "McDavid extends point streak to 12 games", league: "NHL", time: "8h ago" },
+  { title: "Jokic records 5th triple-double in last 7 games", league: "NBA", time: "Example" },
+  { title: "Aaron Judge on pace for 55+ HR season", league: "MLB", time: "Example" },
+  { title: "Mahomes: 'Feeling great' after ankle scare", league: "NFL", time: "Example" },
+  { title: "McDavid extends point streak to 12 games", league: "NHL", time: "Example" },
 ];
 
 /**
@@ -118,11 +118,13 @@ function Dashboard() {
     total: number; winRate: number; totalProfit: number;
     accuracy: number; analysesToday: number; analysesLimit: number;
   } | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setLoading(true);
     fetchActivityStats()
-      .then(setActivity)
-      .catch(() => setActivity(null)); // unauthenticated / no keys → "—"
+      .then((data) => { setActivity(data); setLoading(false); })
+      .catch(() => { setActivity(null); setLoading(false); }); // unauthenticated / no keys → "—"
   }, []);
 
   return (
@@ -134,22 +136,27 @@ function Dashboard() {
           <p className="text-sm text-betiq-400">Your daily research dashboard</p>
         </div>
         <div className="mt-3 flex items-center gap-3 sm:mt-0">
-          <span className="badge-gold">Live</span>
-          <span className="text-xs text-betiq-500">Updated 2 min ago</span>
+          <span className="badge-gold">Research Dashboard</span>
         </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Main content - 2 columns */}
-        <div className="space-y-6 lg:col-span-2">
+        <div className="min-w-0 space-y-6 lg:col-span-2">
           {/* Featured Games */}
           <section>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-betiq-50">Featured Games</h2>
+            <div className="mb-2 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold text-betiq-50">Featured Games</h2>
+                <span className="badge-gold">Demo Data</span>
+              </div>
               <Link to="/analyzer" className="text-xs font-medium text-gold-400 hover:text-gold-300">
                 View All
               </Link>
             </div>
+            <p className="mb-4 text-xs text-betiq-500">
+              Example matchups — not live scores, spreads, or totals.
+            </p>
             <div className="grid gap-4 sm:grid-cols-2">
               {featuredGames.map((game) => (
                 <div key={game.id} className="card-betiq group">
@@ -197,12 +204,15 @@ function Dashboard() {
 
           {/* AI's Top Value Picks */}
           <section>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-semibold text-betiq-50">AI's Top Value Picks</h2>
-                <span className="badge-gold">High Confidence</span>
+                <span className="badge-gold">Demo Mode — Example Data</span>
               </div>
             </div>
+            <p className="mb-4 text-xs text-betiq-500">
+              Example analysis for illustration — not live AI predictions. Create a free account for real player analysis.
+            </p>
             <div className="space-y-3">
               {aiPicks.map((pick, i) => (
                 <div key={i} className="card-betiq flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -239,12 +249,15 @@ function Dashboard() {
 
           {/* Trending Player Props */}
           <section>
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-2 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-betiq-50">Trending Player Props</h2>
               <Link to="/analyzer" className="text-xs font-medium text-gold-400 hover:text-gold-300">
                 Analyze Player
               </Link>
             </div>
+            <p className="mb-4 text-xs text-betiq-500">
+              Example props — not current lines, trends, or confidence.
+            </p>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[500px]">
                 <thead>
@@ -300,10 +313,16 @@ function Dashboard() {
         </div>
 
         {/* Sidebar - 1 column */}
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           {/* Injury & Lineup Alerts */}
           <section>
-            <h2 className="mb-4 text-lg font-semibold text-betiq-50">Alerts</h2>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-betiq-50">Alerts</h2>
+              <span className="badge-gold">Demo Data</span>
+            </div>
+            <p className="mb-4 text-xs text-betiq-500">
+              Example alerts — not current injury, lineup, or weather reports.
+            </p>
             <div className="space-y-3">
               {alerts.map((alert, i) => (
                 <div key={i} className="card-betiq">
@@ -341,7 +360,13 @@ function Dashboard() {
 
           {/* Sports News Feed */}
           <section>
-            <h2 className="mb-4 text-lg font-semibold text-betiq-50">Latest News</h2>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-betiq-50">Latest News</h2>
+              <span className="badge-gold">Demo Data</span>
+            </div>
+            <p className="mb-4 text-xs text-betiq-500">
+              Example headlines — not current news.
+            </p>
             <div className="space-y-2">
               {newsItems.map((item, i) => (
                 <div key={i} className="card-betiq flex items-start gap-3 py-3">
@@ -359,13 +384,19 @@ function Dashboard() {
 
           {/* Quick Stats — real data from getBetStats + getAccuracyStats + getUsage */}
           <section>
-            <h2 className="mb-4 text-lg font-semibold text-betiq-50">Your Activity</h2>
+            <div className="mb-2 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-betiq-50">Your Activity</h2>
+              <span className="badge-gold">Your Data</span>
+            </div>
+            <p className="mb-4 text-xs text-betiq-500">
+              Real data from your tracked bets and analysis usage.
+            </p>
             <div className="grid grid-cols-2 gap-3">
               {[
-                { label: "Bets Tracked", value: activity ? String(activity.total) : "—", color: "text-gold-400" },
-                { label: "Accuracy", value: activity ? Math.round(activity.accuracy * 100) + "%" : "—", color: activity && activity.accuracy * 100 >= 50 ? "text-green-400" : "text-betiq-300" },
-                { label: "P/L", value: activity ? (activity.totalProfit >= 0 ? "+$" : "-$") + Math.abs(activity.totalProfit).toFixed(2) : "—", color: activity && activity.totalProfit >= 0 ? "text-green-400" : "text-betiq-300" },
-                { label: "AI Credits", value: activity ? `${activity.analysesToday}/${activity.analysesLimit}` : "—", color: "text-betiq-300" },
+                { label: "Bets Tracked", value: activity ? String(activity.total) : loading ? "…" : "—", color: "text-gold-400" },
+                { label: "Accuracy", value: activity ? Math.round(activity.accuracy * 100) + "%" : loading ? "…" : "—", color: activity && activity.accuracy * 100 >= 50 ? "text-green-400" : "text-betiq-300" },
+                { label: "P/L", value: activity ? (activity.totalProfit >= 0 ? "+$" : "-$") + Math.abs(activity.totalProfit).toFixed(2) : loading ? "…" : "—", color: activity && activity.totalProfit >= 0 ? "text-green-400" : "text-betiq-300" },
+                { label: "AI Credits", value: activity ? `${activity.analysesToday}/${activity.analysesLimit}` : loading ? "…" : "—", color: "text-betiq-300" },
               ].map((stat, i) => (
                 <div key={i} className="card-betiq text-center">
                   <p className={`text-xl font-bold ${stat.color}`}>{stat.value}</p>
